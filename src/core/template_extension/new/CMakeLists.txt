@@ -9,7 +9,7 @@ set(TARGET_NAME "openvino_template_extension")
 
 find_package(OpenVINO REQUIRED)
 
-set(SRC identity.cpp ov_extension.cpp)
+set(SRC identity.cpp convert_fp8.cpp ov_extension.cpp)
 
 add_library(${TARGET_NAME} MODULE ${SRC})
 

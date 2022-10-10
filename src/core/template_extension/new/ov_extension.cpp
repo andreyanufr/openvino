@@ -7,6 +7,7 @@
 #include <openvino/frontend/extension.hpp>
 
 #include "identity.hpp"
+#include "convert_fp8.hpp"
 
 // clang-format off
 //! [ov_extension:entry_point]
@@ -18,6 +19,12 @@ OPENVINO_CREATE_EXTENSIONS(
 
         // Register operaton mapping, required when converted from framework model format
         std::make_shared<ov::frontend::OpExtension<TemplateExtension::Identity>>()
+
+        // Register operation itself, required to be read from IR
+        std::make_shared<ov::OpExtension<TemplateExtension::ConvertFP8>>(),
+
+        // Register operaton mapping, required when converted from framework model format
+        std::make_shared<ov::frontend::OpExtension<TemplateExtension::ConvertFP8>>()
     }));
 //! [ov_extension:entry_point]
 // clang-format on
