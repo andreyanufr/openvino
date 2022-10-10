@@ -18,7 +18,7 @@ OPENVINO_CREATE_EXTENSIONS(
         std::make_shared<ov::OpExtension<TemplateExtension::Identity>>(),
 
         // Register operaton mapping, required when converted from framework model format
-        std::make_shared<ov::frontend::OpExtension<TemplateExtension::Identity>>()
+        std::make_shared<ov::frontend::OpExtension<TemplateExtension::Identity>>(),
 
         // Register operation itself, required to be read from IR
         std::make_shared<ov::OpExtension<TemplateExtension::ConvertFP8>>(),
