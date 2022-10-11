@@ -13,7 +13,7 @@
 namespace TemplateExtension {
 
 enum class TypeFP8 {
-    bf8, //!< 1s5e2m element type
+    bf8 = ov::element::bf8, //!< 1s5e2m element type
     hf8  //!< 1s4e3m element type
 };
 
@@ -23,7 +23,7 @@ public:
     OPENVINO_OP("ConvertFP8");
 
     ConvertFP8() = default;
-    ConvertFP8(const ov::Output<ov::Node>& arg, TypeFP8& destination_type);
+    ConvertFP8(const ov::Output<ov::Node>& arg, const ov::element::Type &destination_type);
 
     void validate_and_infer_types() override;
     std::shared_ptr<ov::Node> clone_with_new_inputs(const ov::OutputVector& new_args) const override;
@@ -33,8 +33,9 @@ public:
     bool has_evaluate() const override;
 
 private:
+    void validate() const;
     std::shared_ptr<ov::op::v0::Convert> m_convert_fp16;
-    TypeFP8 m_destination_type
+    ov::element::Type m_destination_type = TypeFP8::bf8;
 };
 //! [op:header]
 
