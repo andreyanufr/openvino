@@ -13,7 +13,7 @@
 namespace TemplateExtension {
 
 enum class TypeFP8 {
-    bf8 = ov::element::bf8, //!< 1s5e2m element type
+    bf8, //!< 1s5e2m element type
     hf8  //!< 1s4e3m element type
 };
 
@@ -35,7 +35,7 @@ public:
 private:
     void validate() const;
     std::shared_ptr<ov::op::v0::Convert> m_convert_fp16;
-    ov::element::Type m_destination_type = TypeFP8::bf8;
+    ov::element::Type m_destination_type = ov::element::bf8;
 };
 //! [op:header]
 
