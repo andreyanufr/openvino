@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import numpy as np
+import copy
 
 from openvino.tools.mo.front.common.partial_infer.utils import int64_array, float32_array
 from openvino.tools.mo.graph.graph import Node, Graph
@@ -128,4 +129,4 @@ class ConvertFP8(Op):
 
         node.out_node().shape = x.shape.copy()
 
-        node.out_node().value = x.value.copy()
+        #node.out_node().value = copy.deepcopy(x.value)

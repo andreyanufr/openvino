@@ -141,7 +141,7 @@ def compute_stats_layouts(config, model, qscheme=None):
             fq_config['signed'] = True
 
         fake_quantize_config[fq.fullname] = fq_config
-        fq.levels = compute_levels(fq_config, is_weights)
+        #fq.levels = compute_levels(fq_config, is_weights)
 
     return fake_quantize_config
 

@@ -810,7 +810,10 @@ def create_fake_quantize_node(graph: Graph, name, data_type=np.float32, **kwargs
     fq = ConvertFP8(graph, {'name': name,
                               'stop_value_propagation': True, **kwargs}).create_node()
 
-    '''input_low = Const(graph, {'value': np.array(0.0, dtype=data_type)}).create_node()
+    '''fq = FakeQuantize(graph, {'name': name, 'levels': 0,
+                              'stop_value_propagation': True, **kwargs}).create_node()
+
+    input_low = Const(graph, {'value': np.array(0.0, dtype=data_type)}).create_node()
     input_height = Const(graph, {'value': np.array(0.0, dtype=data_type)}).create_node()
     output_low = Const(graph, {'value': np.array(0.0, dtype=data_type)}).create_node()
     output_height = Const(graph, {'value': np.array(0.0, dtype=data_type)}).create_node()
@@ -890,6 +893,8 @@ def insert_fake_quantize(graph, node, ports=None, names=None, fq_types=None, hw_
 
         fq_name = '{node_name}/{name}_{idx}'.format(node_name=node.name, name=name, idx=idx)
         fq_input = create_fake_quantize_node(graph, fq_name, port_data_type, **fq_options)
+        if fq_group == 'weights':
+            print(f"Inserted FQ for weights: {fq_name}")
         # Insert ConvertFP8 after input
         if node.type == 'Result':
             in_port = port.get_source()
