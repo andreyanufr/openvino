@@ -82,7 +82,7 @@ void print_tensor(const ov::Tensor& t, std::string s) {
 /// <param name="out"></param>
 /// <param name="count"></param>
 template <typename T>
-void convertfp16_bf8(const T* const arg, T* out, size_t count, int exp_bits = 6, int mbits = 8) {
+void convertfp16_bf8(const T* const arg, T* out, size_t count, int exp_bits = 5, int mbits = 8) {
     typedef union half_t {
         unsigned short u;
         T f;
@@ -155,7 +155,7 @@ void convertfp16_bf8(const T* const arg, T* out, size_t count, int exp_bits = 6,
 // Exponent normal values 14 3
 // Exponent NaN values 15 4
 template <typename T>
-void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 6, int mbits = 9) {
+void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5, int mbits = 9) {
     typedef union half_t {
         unsigned short u;
         T f;
