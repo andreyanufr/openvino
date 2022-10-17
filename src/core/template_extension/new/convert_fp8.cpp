@@ -209,7 +209,7 @@ void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5, int m
 }
 
 template <typename ET>
-bool evaluate(const ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& destination_type) {
+bool evaluate(ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& destination_type) {
     out.set_shape(arg.get_shape());
     size_t element_count = shape_size(out.get_shape());
 
@@ -221,8 +221,8 @@ bool evaluate(const ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& d
     if (destination_type == ov::element::bf8)
         convertfp16_bf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
     else if (destination_type == ov::element::hf8) {
-        runtime::reference::clamp<ov::float16>(arg->get_data_ptr<ov::float16>(),
-                                               arg->get_data_ptr<ov::float16>(),
+        runtime::reference::clamp<ov::float16>(static_cast<ov::float16>(arg.data()),
+                                               static_cast<ov::float16>(arg.data()),
                                                -15.0,
                                                15.0,
                                                element_count);
