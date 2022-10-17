@@ -143,7 +143,8 @@ void convertfp16_bf8(const T* const arg, T* out, size_t count, int exp_bits = 5,
 // Exponent normal values 1..14 -10..3 (11 - exponent)
 // Exponent NaN values 15 4
 template <typename T>
-void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5, int mbits = 9) {
+void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5,
+                     int mbits = 9, bool use_clamp=true) {
     typedef union half_t {
         unsigned short u;
         T f;
@@ -173,14 +174,18 @@ void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5, int m
         unsigned short is_normal = 1;
 
         is_normal = (((h.u & 0x7C00) <= 0x7800) && ((h.u & 0x7C00) >= 0x0400)) ? 1 : 0;
-        unsigned short is_denorm = ((h.u & 0x7C00) == 0x0) ? 1 : 0;
         unsigned short is_naninf = ((h.u & 0x7C00) == 0x7C00) ? 1 : 0;
 
         int dshift = 0;
         if (exp_h > 3) {  // too large, set it to NaN or inf
-            mantissa_h = 0;
-            exp_h = 16;
-            is_naninf = 1;
+            if (use_clamp) {
+                exp_h = 3;
+                mantissa_h = 0b0000001110000000;
+            } else {
+                mantissa_h = 0;
+                exp_h = 16;
+                is_naninf = 1;
+            }
         } else if (exp_h < -13) {  /// -13, -12, -11 for rounding
             /* flush values below 1-4-3 (offset=4) subnormal range to zero */
             exp_h = -15;
@@ -221,11 +226,6 @@ bool evaluate(ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& destina
     if (destination_type == ov::element::bf8)
         convertfp16_bf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
     else if (destination_type == ov::element::hf8) {
-        runtime::reference::clamp<ov::float16>(static_cast<ov::float16>(arg.data()),
-                                               static_cast<ov::float16>(arg.data()),
-                                               -15.0,
-                                               15.0,
-                                               element_count);
         convertfp16_hf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
     }  else {
         std::cout << "Bad destination_type: " << destination_type << std::endl;
