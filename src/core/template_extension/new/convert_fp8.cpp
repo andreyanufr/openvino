@@ -82,7 +82,7 @@ void print_tensor(const ov::Tensor& t, std::string s) {
 /// <param name="out"></param>
 /// <param name="count"></param>
 template <typename T>
-void convertfp16_bf8(const T* const arg, T* out, size_t count, int exp_bits = 6, int mbits = 10) {
+void convertfp16_bf8(const T* const arg, T* out, size_t count, int exp_bits = 6, int mbits = 8) {
     typedef union half_t {
         unsigned short u;
         T f;
