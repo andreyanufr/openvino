@@ -384,7 +384,7 @@ public:
 </net>
 )V0G0N";
 
-        const int sz = 6;
+        const int sz = 8;
         ov::Tensor weights;
         replace_all(model, "<shape>", std::to_string(sz));
         std::string deviceName = "CPU";
@@ -404,17 +404,23 @@ public:
         in_ptr[1]  = 0b0000000000111111; // denormalized value must be converted to zero
         out_ptr[1] = 0b0000000000000000;
 
-        in_ptr[2] =  0b0100101101000011; // 14.525
-        out_ptr[2] = 0b0100101101000000;
+        in_ptr[2]  = 0b0100101101000011;  // 14.525 0s10010e(110 100 0011) - exp = 3, grs = 100, mantisa bit is 0 -> do nothing
+        out_ptr[2] = 0b0100101100000000;
 
-        in_ptr[3] =  0b1100101101000011;  // -14.525
-        out_ptr[3] = 0b1100101101000000;
+        in_ptr[3] =  0b1100101101000011;  // -14.525 the same
+        out_ptr[3] = 0b1100101100000000;
 
         in_ptr[4]  = 0b1100110000000000;  // -16 must be clamp to -15
         out_ptr[4] = 0b1100101110000000;
 
         in_ptr[5]  = 0b0101000000000000;  // 32 must be clamp to 15
         out_ptr[5] = 0b0100101110000000;
+
+        in_ptr[6]  = 0b0100101101010011;  // 0s10010e(110 101 0011) - exp = 3, grs = 101, mantisa bit is 0 -> add one bit for mantissa
+        out_ptr[6] = 0b0100101110000000;
+
+        in_ptr[7]  = 0b0100101011010011;  // 0s10010e(101 101 0011) - exp = 3, grs = 101, mantisa bit is 1 -> add one bit for mantissa
+        out_ptr[7] = 0b0100101100000000;
 
         ngraph::runtime::reference::convert(data.data<ov::float16>(), data32.data<float>(), sz);
         std::map<std::string, ov::Any> config;

@@ -59,7 +59,8 @@ namespace {
 void print_tensor(const ov::Tensor& t, std::string s) {
     std::cout << "Tensor " << s << ": ";
     auto shape = t.get_shape();
-    int len = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<int>());
+    int len = shape_size(shape);
+
     if (t.get_element_type() == ov::element::f16) {
         auto ptr = static_cast<ov::float16*>(t.data());
         for (int i = 0; i < len; i++) {
@@ -139,20 +140,7 @@ void convertfp16_bf8(const T* const arg, T* out, size_t count, int exp_bits = 5,
 /// <param name="out"></param>
 /// <param name="count"></param>
 // Exponent denormal values 0 -11
-// Exponent normal values 1 -10
-// Exponent normal values 2 -9
-// Exponent normal values 3 -8
-// Exponent normal values 4 -7
-// Exponent normal values 5 -6
-// Exponent normal values 6 -5
-// Exponent normal values 7 -4
-// Exponent normal values 8 -3
-// Exponent normal values 9 -2
-// Exponent normal values 10 -1
-// Exponent normal values 11 0
-// Exponent normal values 12 1
-// Exponent normal values 13 2
-// Exponent normal values 14 3
+// Exponent normal values 1..14 -10..3 (11 - exponent)
 // Exponent NaN values 15 4
 template <typename T>
 void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5, int mbits = 9) {
@@ -161,7 +149,6 @@ void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5, int m
         T f;
     } __half_t;
 
-    //runtime::reference::clamp<T>(arg->get_data_ptr<T>(), arg->get_data_ptr<T>(), 15.0, 15.0, count);
 
     int non_mant_bits = exp_bits + 1; /* exponent + sign */         ///  6 - ?
     int lshift = 10 - (mbits - non_mant_bits);                      /// 10 - (9 - 6) == 7 - ???
@@ -199,7 +186,7 @@ void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5, int m
             exp_h = -15;
             mantissa_h = 0;
         }
-        /* nearest rounding masks, & 0 00000 0001111111 - mantissa bits below hf8 */
+        /* nearest rounding masks, & 0 00000 000 111 1111 - mantissa bits below hf8 (grs) */
         unsigned short rnmask = (mantissa_h & grs_bitmask);
         /* & 0 00000 0011000000 - edge between hf8 and fp16 mantissa */
         unsigned short rnmask_tie = (mantissa_h & rne_tie);
@@ -223,18 +210,6 @@ void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5, int m
 
 template <typename ET>
 bool evaluate(const ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& destination_type) {
-    /*out->set_shape(arg->get_shape());
-    size_t element_count = shape_size(out->get_shape());
-
-    if ((INPUT_ET != arg->get_element_type()) || OUTPUT_ET != out->get_element_type()) {
-        return false;
-    }
-
-    if (destination_type == ov::element::bf8)
-        return convertfp16_bf8(arg->get_data_ptr<INPUT_ET>(), out->get_data_ptr<OUTPUT_ET>(), element_count);
-    else if (destination_type == ov::element::hf8)
-        return convertfp16_hf8(arg->get_data_ptr<INPUT_ET>(), out->get_data_ptr<OUTPUT_ET>(), element_count);*/
-
     out.set_shape(arg.get_shape());
     size_t element_count = shape_size(out.get_shape());
 
@@ -245,9 +220,14 @@ bool evaluate(const ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& d
 
     if (destination_type == ov::element::bf8)
         convertfp16_bf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
-    else if (destination_type == ov::element::hf8)
+    else if (destination_type == ov::element::hf8) {
+        runtime::reference::clamp<ov::float16>(arg->get_data_ptr<ov::float16>(),
+                                               arg->get_data_ptr<ov::float16>(),
+                                               -15.0,
+                                               15.0,
+                                               element_count);
         convertfp16_hf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
-    else {
+    }  else {
         std::cout << "Bad destination_type: " << destination_type << std::endl;
     }
 
