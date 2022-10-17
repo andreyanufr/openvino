@@ -125,7 +125,7 @@ public:
             if (ptr1[i] != ptr2[i]) {
                 std::bitset<16> exp_val(ptr1[i]);
                 std::bitset<16> out_val(ptr2[i]);
-                std::cout << "Expected: " << exp_val << ". Received: " << out_val << std::endl;
+                std::cout << i << ") " <<  "Expected: " << exp_val << ". Received: " << out_val << std::endl;
             }
         }
     }

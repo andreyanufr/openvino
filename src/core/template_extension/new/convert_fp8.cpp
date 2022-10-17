@@ -89,9 +89,9 @@ void convertfp16_bf8(const T* const arg, T* out, size_t count, int exp_bits = 6,
     } __half_t;
 
     int non_mant_bits = exp_bits + 1;           /* exponent + sign */
-    int lshift = 10 - (mbits - non_mant_bits);  // 10 - (10 - 6) == 6 ???
+    int lshift = 10 - (mbits - non_mant_bits);  // 10 - (8 - 6) == 8 ???
 
-    unsigned short mask_mant = (unsigned short)(0xffff << lshift);  // 1111111111111111 -> 1 11111 1111000000
+    unsigned short mask_mant = (unsigned short)(0xffff << lshift);  // 1111111111111111 -> 1 11111 1100000000
     unsigned short grs_bitmask = 0x00ff;                            // 0 00000 0011111111 - guard, round, sticky bits
     unsigned short rne_tie = 0x0180;                                // 0 00000 0110000000
 
