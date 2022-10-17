@@ -110,6 +110,8 @@ void pass::DynElimination::construct_range() {
         case element::Type_t::undefined:
         case element::Type_t::dynamic:
         case element::Type_t::boolean:
+        case element::Type_t::hf8:
+        case element::Type_t::bf8:
             NGRAPH_CHECK(false, "Internal nGraph error: unsupported element type: ", et);
             break;
         }

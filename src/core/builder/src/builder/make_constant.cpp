@@ -61,6 +61,14 @@ std::shared_ptr<Node> make_constant_from_double(const element::Type& type, const
         result = builder::make_constant(type, shape, num);
         break;
     }
+    case element::Type_t::bf8: {
+        result = std::make_shared<ngraph::op::Constant>(type, shape, double_to_int<uint8_t>(num, ceil_func));
+        break;
+    }
+    case element::Type_t::hf8: {
+        result = std::make_shared<ngraph::op::Constant>(type, shape, double_to_int<uint8_t>(num, ceil_func));
+        break;
+    }
     default:
         throw std::runtime_error("Unsupported data type during make_constant_from_double");
         break;

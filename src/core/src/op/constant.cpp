@@ -120,6 +120,12 @@ ov::op::v0::Constant::Constant(const element::Type& type,
         case Type_t::u64:
             fill_data<Type_t::u64>(ngraph::parse_string<uint64_t>(values[0]));
             break;
+        case Type_t::bf8:
+            fill_data<Type_t::bf8>(ngraph::parse_string<uint8_t>(values[0]));
+            break;
+        case Type_t::hf8:
+            fill_data<Type_t::hf8>(ngraph::parse_string<uint8_t>(values[0]));
+            break;
         case Type_t::undefined:
             throw std::runtime_error("deserialize unsupported type undefined");
         case Type_t::dynamic:
@@ -175,6 +181,12 @@ ov::op::v0::Constant::Constant(const element::Type& type,
             break;
         case Type_t::u64:
             write_buffer<Type_t::u64>(ngraph::parse_string<uint64_t>(values));
+            break;
+        case Type_t::bf8:
+            write_buffer<Type_t::bf8>(ngraph::parse_string<uint8_t>(values));
+            break;
+        case Type_t::hf8:
+            write_buffer<Type_t::hf8>(ngraph::parse_string<uint8_t>(values));
             break;
         case Type_t::undefined:
             throw std::runtime_error("deserialize unsupported type undefined");
@@ -286,6 +298,12 @@ string ov::op::v0::Constant::convert_value_to_string(size_t index) const {
     case Type_t::u64:
         rc = to_string(get_element_value<Type_t::u64>(index));
         break;
+    case Type_t::bf8:
+        rc = to_string(get_element_value<Type_t::bf8>(index));
+        break;
+    case Type_t::hf8:
+        rc = to_string(get_element_value<Type_t::hf8>(index));
+        break;
     case Type_t::undefined:
         throw runtime_error("unsupported type");
     case Type_t::dynamic:
@@ -379,6 +397,16 @@ vector<string> ov::op::v0::Constant::get_value_strings() const {
         break;
     case element::Type_t::u64:
         for (uint64_t value : get_vector<uint64_t>()) {
+            rc.push_back(to_string(value));
+        }
+        break;
+    case element::Type_t::bf8:
+        for (uint8_t value : get_vector<uint8_t>()) {
+            rc.push_back(to_string(value));
+        }
+        break;
+    case element::Type_t::hf8:
+        for (uint8_t value : get_vector<uint8_t>()) {
             rc.push_back(to_string(value));
         }
         break;
@@ -493,7 +521,9 @@ bool ov::op::v0::Constant::are_all_data_elements_bitwise_identical() const {
     switch (m_element_type) {
     case element::Type_t::boolean:
     case element::Type_t::i8:
-    case element::Type_t::u8: {
+    case element::Type_t::u8:
+    case element::Type_t::bf8: 
+    case element::Type_t::hf8: {
         rc = test_bitwise_identical<uint8_t>(get_data_ptr<uint8_t>(), shape_size(m_shape));
         break;
     }

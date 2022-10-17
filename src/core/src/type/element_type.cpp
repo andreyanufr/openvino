@@ -73,6 +73,10 @@ inline TypeInfo get_type_info(ov::element::Type_t type) {
         return {32, false, false, false, "uint32_t", "u32"};
     case ov::element::Type_t::u64:
         return {64, false, false, false, "uint64_t", "u64"};
+    case ov::element::Type_t::bf8:
+        return {8, true, true, false, "bfloat8", "bf8"};
+    case ov::element::Type_t::hf8:
+        return {8, true, true, false, "hfloat8", "hf8"};
     default:
         OPENVINO_UNREACHABLE("ov::element::Type_t not supported: ", type);
     }
@@ -356,6 +360,8 @@ inline size_t compiler_byte_size(ov::element::Type_t et) {
         ET_CASE(u16);
         ET_CASE(u32);
         ET_CASE(u64);
+        ET_CASE(bf8);
+        ET_CASE(hf8);
 #undef ET_CASE
     case ov::element::Type_t::undefined:
         return 0;

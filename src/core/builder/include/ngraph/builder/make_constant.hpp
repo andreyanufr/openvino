@@ -83,6 +83,16 @@ std::shared_ptr<Node> make_constant(const element::Type& type, const Shape& shap
                                                      ngraph::Shape{},
                                                      std::vector<uint8_t>{static_cast<uint8_t>(num)});
         break;
+    case element::Type_t::bf8:
+        val = std::make_shared<ngraph::op::Constant>(type,
+                                                     ngraph::Shape{},
+                                                     std::vector<uint8_t>{static_cast<uint8_t>(num)});
+        break;
+    case element::Type_t::hf8:
+        val = std::make_shared<ngraph::op::Constant>(type,
+                                                     ngraph::Shape{},
+                                                     std::vector<uint8_t>{static_cast<uint8_t>(num)});
+        break;
     case element::Type_t::dynamic:
         throw ngraph_error("make_constant: Unsupported element type 'dynamic'");
     case element::Type_t::boolean:

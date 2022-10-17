@@ -92,4 +92,14 @@ template <>
 struct element_type_traits<element::Type_t::u64> {
     using value_type = uint64_t;
 };
+
+template <>
+struct element_type_traits<element::Type_t::bf8> {
+    using value_type = uint8_t;
+};
+
+template <>
+struct element_type_traits<element::Type_t::hf8> {
+    using value_type = uint8_t;
+};
 }  // namespace ov

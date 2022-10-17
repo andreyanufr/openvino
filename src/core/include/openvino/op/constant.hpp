@@ -128,6 +128,12 @@ public:
         case Type_t::u64:
             fill_data<Type_t::u64>(value);
             break;
+        case Type_t::bf8:
+            fill_data<Type_t::bf8>(value);
+            break;
+        case Type_t::hf8:
+            fill_data<Type_t::hf8>(value);
+            break;
         case Type_t::undefined:
         case Type_t::dynamic:
             throw std::runtime_error("unsupported type");
@@ -667,6 +673,12 @@ private:
             break;
         case Type_t::u64:
             write_buffer<Type_t::u64>(source);
+            break;
+        case Type_t::bf8:
+            write_buffer<Type_t::bf8>(source);
+            break;
+        case Type_t::hf8:
+            write_buffer<Type_t::hf8>(source);
             break;
         case element::Type_t::undefined:
         case element::Type_t::dynamic:
