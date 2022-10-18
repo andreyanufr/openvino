@@ -404,10 +404,10 @@ public:
         in_ptr[1]  = 0b0000000000111111; // denormalized value must be converted to zero
         out_ptr[1] = 0b0000000000000000;
 
-        in_ptr[2]  = 0b0100101101000011;  // 14.525 0s10010e(110 100 0011) - exp = 3, grs = 100, mantisa bit is 0 -> do nothing
+        in_ptr[2]  = 0b0100101101000000;  // 14.525 0s10010e(110 100 0011) - exp = 3, grs = 100, mantisa bit is 0 -> do nothing
         out_ptr[2] = 0b0100101100000000;
 
-        in_ptr[3] =  0b1100101101000011;  // -14.525 the same
+        in_ptr[3] =  0b1100101101000000;  // -14.525 the same
         out_ptr[3] = 0b1100101100000000;
 
         in_ptr[4]  = 0b1100110000000000;  // -16 must be clamp to -15
