@@ -105,7 +105,7 @@ class ConvertFP8(Op):
         mandatory_props = {
             'type': self.op,
             'op': self.op,
-            'version': 'opset1',
+            'version': 'extension',
             'is_eltwise': True,
             'infer': self.infer,
             'in_ports_count': 1,
