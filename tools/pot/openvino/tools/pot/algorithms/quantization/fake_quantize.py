@@ -126,7 +126,7 @@ def compute_stats_layouts(config, model, qscheme=None):
     change_configurations_by_model_type(model, config, fq_configuration, hardware_config)
 
     # get all fake quantize nodes
-    fq_nodes = get_nodes_by_type(model, ['FakeQuantize'])
+    fq_nodes = get_nodes_by_type(model, ['ConvertFP8'])
 
     fake_quantize_config = {}
     for fq in fq_nodes:
@@ -141,7 +141,7 @@ def compute_stats_layouts(config, model, qscheme=None):
             fq_config['signed'] = True
 
         fake_quantize_config[fq.fullname] = fq_config
-        fq.levels = compute_levels(fq_config, is_weights)
+        #fq.levels = compute_levels(fq_config, is_weights)
 
     return fake_quantize_config
 
@@ -303,21 +303,21 @@ def get_quantized_model(model, create_stats_collector, activations_statistics,
     :param fill_fq_range: functor to generate min and max range for fake quantize node
     :param config: dictionary with params algo section from toolkit config
      """
-    # FakeQuantize nodes insertion
+    # ConvertFP8 nodes insertion
     insert_fake_quantize_nodes(config, model, qscheme=qscheme)
 
-    fake_quantize_config = compute_stats_layouts(config, model, qscheme=qscheme)
+    #fake_quantize_config = compute_stats_layouts(config, model, qscheme=qscheme)
 
     # generate a list of fq nodes that require rescaling (first convolutions weight FQs)
-    fake_quantize_config.update(set_rescaling_factors(config, model))
+    #fake_quantize_config.update(set_rescaling_factors(config, model))
 
-    weights_stats_layout = create_stats_collector(fake_quantize_config, model, for_weights=True)
+    #weights_stats_layout = create_stats_collector(fake_quantize_config, model, for_weights=True)
 
     # compute weights statistics
-    weights_stats = compute_weights_stats(model, weights_stats_layout)
+    #weights_stats = compute_weights_stats(model, weights_stats_layout)
 
     # calculate and fill min and max range for fq nodes
-    fill_fq_range(model, weights_stats, activations_statistics, fake_quantize_config, config)
+    #fill_fq_range(model, weights_stats, activations_statistics, fake_quantize_config, config)
     return model
 
 
@@ -331,8 +331,8 @@ def compute_weights_stats(model, stats_layout):
     weights_stats = {}
     for fq_name, stats in stats_layout.items():
         fq_node = get_node_by_name(model, fq_name)
-        if fq_node.type != 'FakeQuantize':
-            raise Exception('FakeQuantize node for weights is missed')
+        if fq_node.type != 'ConvertFP8':
+            raise Exception('ConvertFP8 node for weights is missed')
         node = get_fake_quantize_first_output(fq_node)
         weights_node = get_node_input(fq_node, 0)
         weights_value = get_input_data_value(fq_node, 0)

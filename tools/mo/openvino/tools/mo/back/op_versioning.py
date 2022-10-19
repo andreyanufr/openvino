@@ -30,6 +30,7 @@ class OpVersioning(BackReplacementPattern):
         "Convert",
         "ConvertLike",
         "Convolution",
+        "ConvertFP8",
         "ConvolutionBackpropData",
         "Cos",
         "Cosh",
