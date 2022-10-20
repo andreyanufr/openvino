@@ -619,40 +619,40 @@ static void TransformationUpToCPUSpecificOpSet(std::shared_ptr<ngraph::Function>
     });
     postLPTPassManager.run_passes(nGraphFunc);
 
-    if (_enableSnippets && dnnl::impl::cpu::x64::mayiuse(dnnl::impl::cpu::x64::avx2)) {
-        ngraph::pass::Manager snippetsManager;
-        snippetsManager.register_pass<SnippetsMarkSkipped>();
-        snippetsManager.register_pass<ngraph::snippets::pass::EnumerateNodes>();
-        snippetsManager.register_pass<ngraph::snippets::pass::TokenizeSnippets>();
-        snippetsManager.get_pass_config()->set_callback<ngraph::snippets::pass::TokenizeSnippets>(
-                [](const std::shared_ptr<const ov::Node>& n) -> bool {
-                    // CPU Plugin support Swish in Subgraph via conversion to SwichCPU which assumes second input to be constant
-                    if (ov::is_type<const ov::op::v4::Swish>(n)) {
-                        if (n->inputs().size() > 1 && !ov::is_type<const ov::op::v0::Constant>(n->get_input_node_shared_ptr(1)))
-                            return true;
-                    }
+    // if (_enableSnippets && dnnl::impl::cpu::x64::mayiuse(dnnl::impl::cpu::x64::avx2)) {
+    //     ngraph::pass::Manager snippetsManager;
+    //     snippetsManager.register_pass<SnippetsMarkSkipped>();
+    //     snippetsManager.register_pass<ngraph::snippets::pass::EnumerateNodes>();
+    //     snippetsManager.register_pass<ngraph::snippets::pass::TokenizeSnippets>();
+    //     snippetsManager.get_pass_config()->set_callback<ngraph::snippets::pass::TokenizeSnippets>(
+    //             [](const std::shared_ptr<const ov::Node>& n) -> bool {
+    //                 // CPU Plugin support Swish in Subgraph via conversion to SwichCPU which assumes second input to be constant
+    //                 if (ov::is_type<const ov::op::v4::Swish>(n)) {
+    //                     if (n->inputs().size() > 1 && !ov::is_type<const ov::op::v0::Constant>(n->get_input_node_shared_ptr(1)))
+    //                         return true;
+    //                 }
 
-                    const auto& inputs = n->inputs();
-                    // todo: clarify whether we can evaluate snippets on const paths
-                    const bool has_only_const_inputs = std::all_of(inputs.begin(), inputs.end(),
-                                [](const ov::Input<const ov::Node> &in) {
-                                        return ov::is_type<ov::op::v0::Constant>(in.get_source_output().get_node_shared_ptr());
-                                      });
-                    // todo: clarify whether we can evaluate snippets on inputs with larger ranks
-                    auto rank_is_too_large = [](const ov::descriptor::Tensor& t ) {
-                        // callback is called has_supported_in_out(), so it's safe to assume that the shapes are static
-                        return t.get_partial_shape().rank().get_length() > 6;
-                    };
-                    const bool bad_input_rank = std::any_of(inputs.begin(), inputs.end(),
-                                                            [&](const ov::Input<const ov::Node>& in) {return  rank_is_too_large(in.get_tensor());});
-                    const auto& outputs = n->outputs();
-                    const bool bad_output_rank = std::any_of(outputs.begin(), outputs.end(),
-                                                             [&](const ov::Output<const ov::Node>& out) {return  rank_is_too_large(out.get_tensor());});
-                    return has_only_const_inputs || bad_input_rank || bad_output_rank;
-                });
-        snippetsManager.register_pass<ngraph::snippets::pass::CommonOptimizations>();
-        snippetsManager.run_passes(nGraphFunc);
-    }
+    //                 const auto& inputs = n->inputs();
+    //                 // todo: clarify whether we can evaluate snippets on const paths
+    //                 const bool has_only_const_inputs = std::all_of(inputs.begin(), inputs.end(),
+    //                             [](const ov::Input<const ov::Node> &in) {
+    //                                     return ov::is_type<ov::op::v0::Constant>(in.get_source_output().get_node_shared_ptr());
+    //                                   });
+    //                 // todo: clarify whether we can evaluate snippets on inputs with larger ranks
+    //                 auto rank_is_too_large = [](const ov::descriptor::Tensor& t ) {
+    //                     // callback is called has_supported_in_out(), so it's safe to assume that the shapes are static
+    //                     return t.get_partial_shape().rank().get_length() > 6;
+    //                 };
+    //                 const bool bad_input_rank = std::any_of(inputs.begin(), inputs.end(),
+    //                                                         [&](const ov::Input<const ov::Node>& in) {return  rank_is_too_large(in.get_tensor());});
+    //                 const auto& outputs = n->outputs();
+    //                 const bool bad_output_rank = std::any_of(outputs.begin(), outputs.end(),
+    //                                                          [&](const ov::Output<const ov::Node>& out) {return  rank_is_too_large(out.get_tensor());});
+    //                 return has_only_const_inputs || bad_input_rank || bad_output_rank;
+    //             });
+    //     snippetsManager.register_pass<ngraph::snippets::pass::CommonOptimizations>();
+    //     snippetsManager.run_passes(nGraphFunc);
+    // }
 
     ngraph::pass::Manager postSnippetsManager;
     postSnippetsManager.register_pass<ngraph::pass::FakeQuantizeDecomposition>();

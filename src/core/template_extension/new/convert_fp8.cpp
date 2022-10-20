@@ -246,13 +246,13 @@ bool ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inp
 
     ov::TensorVector fp16;
 
-    convert_fp8::print_tensor(inputs[0], "inputs");
+    //convert_fp8::print_tensor(inputs[0], "inputs");
 
     fp16.emplace_back(ov::Tensor(ov::element::f16, inputs[0].get_shape()));
 
     m_convert_fp16->evaluate(fp16, inputs);
 
-    convert_fp8::print_tensor(fp16[0], "fp16");
+    //convert_fp8::print_tensor(fp16[0], "fp16");
 
     if (outputs[0].get_element_type() == ov::element::f16)
         convert_fp8::evaluate<unsigned short>(fp16[0], outputs[0], m_destination_type);
@@ -261,7 +261,7 @@ bool ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inp
         m_convert_fp32->evaluate(outputs, fp16);
     }
 
-    convert_fp8::print_tensor(outputs[0], "outputs");
+    //convert_fp8::print_tensor(outputs[0], "outputs");
 
     return true;
 }
