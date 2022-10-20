@@ -45,7 +45,7 @@ def build_graph(graph_attrs, meta_data, nodes, edges):
 
 
 def make_copy_fake_quantize(nodes, edges, fq):
-    weights, input_low, input_height, output_low, output_height = get_node_inputs(fq)
+    weights = get_node_inputs(fq)
 
     fq_attrs = deepcopy(fq.attrs())
     if fq.has_valid('levels'):
@@ -53,22 +53,10 @@ def make_copy_fake_quantize(nodes, edges, fq):
 
     nodes.extend([
         (fq.name, fq.type, fq_attrs),
-        (input_low.name, input_low.type,
-         {'value': input_low.value}),
-        (input_height.name, input_height.type,
-         {'value': input_height.value}),
-        (output_low.name, output_low.type,
-         {'value': output_low.value}),
-        (output_height.name, output_height.type,
-         {'value': output_height.value}),
         (weights.name, weights.type, {'value': weights.value.copy()})])
 
     edges.extend([
-        (weights.name, fq.name, {'out': 0, 'in': 0}),
-        (input_low.name, fq.name, {'out': 0, 'in': 1}),
-        (input_height.name, fq.name, {'out': 0, 'in': 2}),
-        (output_low.name, fq.name, {'out': 0, 'in': 3}),
-        (output_height.name, fq.name, {'out': 0, 'in': 4})
+        (weights.name, fq.name, {'out': 0, 'in': 0})
     ])
     return fq.name
 
