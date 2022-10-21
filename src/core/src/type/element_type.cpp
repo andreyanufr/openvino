@@ -394,7 +394,9 @@ NGRAPH_API EnumNames<element::Type_t>& EnumNames<element::Type_t>::get() {
                                                          {"u8", element::Type_t::u8},
                                                          {"u16", element::Type_t::u16},
                                                          {"u32", element::Type_t::u32},
-                                                         {"u64", element::Type_t::u64}});
+                                                         {"u64", element::Type_t::u64},
+                                                         {"bf8", element::Type_t::bf8},
+                                                         {"hf8", element::Type_t::hf8}});
     return enum_names;
 }
 

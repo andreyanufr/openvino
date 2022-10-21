@@ -228,6 +228,7 @@ public:
             </output>
         </layer>
         <layer name="activation" id="1" type="ConvertFP8" version="extension" destination_type="bf8">
+            <data destination_type="bf8"/>
             <input>
                 <port id="1" precision="FP32">
                     <dim>1</dim>
@@ -349,6 +350,7 @@ public:
             </output>
         </layer>
         <layer name="activation" id="1" type="ConvertFP8" version="extension" destination_type="hf8">
+            <data destination_type="hf8"/>
             <input>
                 <port id="1" precision="FP32">
                     <dim>1</dim>
