@@ -110,7 +110,8 @@ class ConvertFP8(Op):
             'infer': self.infer,
             'in_ports_count': 1,
             'out_ports_count': 1,
-            'auto_broadcast': 'numpy'
+            'auto_broadcast': 'numpy',
+            'destination_type': 'hf8'
         }
         super().__init__(graph, mandatory_props, attrs)
 
