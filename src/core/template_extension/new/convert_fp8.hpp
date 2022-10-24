@@ -36,7 +36,7 @@ private:
     void validate() const;
     std::shared_ptr<ov::op::v0::Convert> m_convert_fp16;
     std::shared_ptr<ov::op::v0::Convert> m_convert_fp32;
-    ov::element::Type m_destination_type = ov::element::bf8;
+    ov::element::Type m_destination_type = ov::element::hf8;
 };
 //! [op:header]
 

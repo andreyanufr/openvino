@@ -1913,6 +1913,7 @@ Core::Core(const std::string& xmlConfigFile) {
 #else
     register_plugins(findPluginXML(xmlConfigFile));
 #endif
+    this->add_extension("libopenvino_template_extension.so");
 }
 
 std::map<std::string, Version> Core::get_versions(const std::string& deviceName) const {
