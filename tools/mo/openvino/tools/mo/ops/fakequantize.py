@@ -117,7 +117,8 @@ class ConvertFP8(Op):
 
     def supported_attrs(self):
         return [
-            'auto_broadcast'
+            'auto_broadcast',
+            'destination_type'
         ]
 
     @staticmethod
