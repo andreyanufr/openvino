@@ -94,15 +94,25 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
         output_low = min_level
     if output_high is None:
         output_high = max_level
+    min_level = np.mean(min_level)
+    max_level = np.mean(max_level)
+    #print(min_level)
+    #print(max_level)
+    #print(len(max_level))
+    print('Value: ', max(abs(min_level), abs(max_level)))
+    if max(abs(min_level), abs(max_level)) > 15:
+        fq.destination_type = 'bf8'
+    else:
+        fq.destination_type = 'hf8'
 
-    def _update_node_val(port_idx, value):
-        _node = get_node_input(fq, port_idx)
-        set_node_value(_node, value)
+#    def _update_node_val(port_idx, value):
+#        _node = get_node_input(fq, port_idx)
+#        set_node_value(_node, value)
 
-    _update_node_val(1, min_level)
-    _update_node_val(2, max_level)
-    _update_node_val(3, output_low)
-    _update_node_val(4, output_high)
+#    _update_node_val(1, min_level)
+#    _update_node_val(2, max_level)
+#    _update_node_val(3, output_low)
+#    _update_node_val(4, output_high)
 
 
 def compute_stats_layouts(config, model, qscheme=None):
@@ -248,8 +258,8 @@ def symmetric_range(node, fq, weights_stats,
         min_level = batch_inputs_stats[name]['min']
         max_level = fix_zero_filters_symmetric(max_level)
         signed = fake_quantize_config[fq.fullname]['signed']
-        min_level = np.zeros(max_level.shape) if np.all(min_level >= 0) and not signed else \
-            -max_level * fq.levels / (fq.levels - 2)
+        min_level = -max_level #np.zeros(max_level.shape) if np.all(min_level >= 0) and not signed else \
+            #-max_level * fq.levels / (fq.levels - 2)
     else:
         raise Exception(
             'WARNING: Fake quantize node {} is missed'.format(fq.fullname))
@@ -306,18 +316,18 @@ def get_quantized_model(model, create_stats_collector, activations_statistics,
     # ConvertFP8 nodes insertion
     insert_fake_quantize_nodes(config, model, qscheme=qscheme)
 
-    #fake_quantize_config = compute_stats_layouts(config, model, qscheme=qscheme)
+    fake_quantize_config = compute_stats_layouts(config, model, qscheme=qscheme)
 
     # generate a list of fq nodes that require rescaling (first convolutions weight FQs)
-    #fake_quantize_config.update(set_rescaling_factors(config, model))
+    fake_quantize_config.update(set_rescaling_factors(config, model))
 
-    #weights_stats_layout = create_stats_collector(fake_quantize_config, model, for_weights=True)
+    weights_stats_layout = create_stats_collector(fake_quantize_config, model, for_weights=True)
 
     # compute weights statistics
-    #weights_stats = compute_weights_stats(model, weights_stats_layout)
+    weights_stats = compute_weights_stats(model, weights_stats_layout)
 
     # calculate and fill min and max range for fq nodes
-    #fill_fq_range(model, weights_stats, activations_statistics, fake_quantize_config, config)
+    fill_fq_range(model, weights_stats, activations_statistics, fake_quantize_config, config)
     return model
 
 
