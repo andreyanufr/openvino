@@ -10,7 +10,7 @@
 using namespace TemplateExtension;
 
 //! [op:ctor]
-ConvertFP8::ConvertFP8(const ov::Output<ov::Node>& arg, const ov::element::Type& destination_type)
+ConvertFP8::ConvertFP8(const ov::Output<ov::Node>& arg, const std::string& destination_type)
     : 
     Op({arg}),
     m_destination_type(destination_type),
@@ -45,7 +45,7 @@ bool ConvertFP8::visit_attributes(ov::AttributeVisitor& visitor) {
 //! [op:visit_attributes]
 
 void ConvertFP8::validate() const {
-    OPENVINO_ASSERT(m_destination_type == ov::element::bf8 || m_destination_type == ov::element::hf8,
+    OPENVINO_ASSERT(m_destination_type == "bf8" || m_destination_type == "hf8" || m_destination_type == "hf8_eb_7",
                     "Bad format for f8 conversion type. Allowed types: [ov::element::bf8, ov::element::hf8]");
 }
 
@@ -337,7 +337,7 @@ void convertfp16_hf8_libxsmm(const T* arg,
 }
 
 template <typename ET>
-bool evaluate(ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& destination_type) {
+bool evaluate(ov::Tensor& arg, ov::Tensor& out, const std::string& destination_type) {
     out.set_shape(arg.get_shape());
     size_t element_count = shape_size(out.get_shape());
 
@@ -346,12 +346,13 @@ bool evaluate(ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& destina
         return false;
     }
 
-    if (destination_type == ov::element::bf8)
+    if (destination_type == "bf8")
         convertfp16_bf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
-    else if (destination_type == ov::element::hf8) {
-        //convertfp16_hf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
+    else if (destination_type == "hf8") {
+        convertfp16_hf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
+    } else if (destination_type == "hf8_eb_7") {
         convertfp16_hf8_libxsmm(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
-    }  else {
+    } else {
         std::cout << "Bad destination_type: " << destination_type << std::endl;
     }
 
