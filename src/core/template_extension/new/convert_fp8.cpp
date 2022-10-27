@@ -38,6 +38,7 @@ std::shared_ptr<ov::Node> ConvertFP8::clone_with_new_inputs(const ov::OutputVect
 bool ConvertFP8::visit_attributes(ov::AttributeVisitor& visitor) {
     validate();
     visitor.on_attribute("destination_type", m_destination_type);
+    //visitor.on_attribute("scale", m_scale);
 
     return true;
 }
@@ -213,6 +214,128 @@ void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5,
     }
 }
 
+/// not original
+#define LIBXSMM_CAST_USHORT(VALUE) \
+    ((unsigned short)((VALUE)))
+
+
+unsigned char convert_fp16_hf8(ov::float16 inp) {
+    unsigned int f16_bias = 15;
+    unsigned int f8_bias = 7;
+    unsigned char res = 0;
+    unsigned short s, e, m, e_f16, m_f16;
+    unsigned int fixup;
+    unsigned short in = inp;
+
+    s = (in & 0x8000) >> 8;
+    e_f16 = (in & 0x7c00) >> 10;  /// & 0b0111110000000000
+    m_f16 = (in & 0x03ff);        /// & 0b0000001111111111
+
+    /* special value --> make it NaN */
+    if (e_f16 == 0x1f) {  // == 31
+        e = 0xf;
+        m = 0x7;
+        /* overflow --> make it NaN */
+    } else if ((e_f16 > (f16_bias - f8_bias + 15)) || ((e_f16 == (f16_bias - f8_bias + 15)) && (m_f16 > 0x0300))) {
+        e = 0xf;
+        m = 0x7;
+        /* smaller than denormal f8 + eps */
+    } else if (e_f16 < f16_bias - f8_bias - 3) {
+        e = 0x0;
+        m = 0x0;
+        /* denormal */
+    } else if (e_f16 <= f16_bias - f8_bias) {
+        /* RNE */
+        /* denormalized mantissa */
+        m = m_f16 | 0x0400;
+        /* addtionally subnormal shift */
+        m = m >> ((f16_bias - f8_bias) + 1 - e_f16);
+        /* preserve sticky bit (some sticky bits are lost when denormalizing) */
+        m |= (((m_f16 & 0x007f) + 0x007f) >> 7);
+        /* RNE Round */
+        fixup = (m >> 7) & 0x1;
+        m = m + LIBXSMM_CAST_USHORT(0x003f + fixup);
+        m = m >> 7;
+        e = 0x0;
+        /* normal */
+    } else {
+        /* RNE round */
+        fixup = (m_f16 >> 7) & 0x1;
+        in = in + LIBXSMM_CAST_USHORT(0x003f + fixup);
+        e = (in & 0x7c00) >> 10;
+        m = (in & 0x03ff);
+        OPENVINO_ASSERT(e >= LIBXSMM_CAST_USHORT(f16_bias - f8_bias), "");
+        e -= LIBXSMM_CAST_USHORT(f16_bias - f8_bias);
+        m = m >> 7;
+    }
+
+    /* set result to 0 */
+    res = 0x0;
+    /* set exp and mant */
+    res |= e << 3;
+    res |= m;
+    /* sign it */
+    res |= s;
+
+    return res;
+}
+
+unsigned short convert_hf8_fp16(unsigned char inp) {
+    unsigned int f16_bias = 15;
+    unsigned int f8_bias = 7;
+    unsigned short s = (inp & 0x80) << 8;
+    unsigned short e = (inp & 0x78) >> 3;
+    unsigned short m = (inp & 0x07);
+    unsigned short e_norm = e + (f16_bias - f8_bias);
+    unsigned short res = 0;
+    /* convert denormal fp8 number into a normal fp16 number */
+    if ((e == 0) && (m != 0)) {
+        unsigned int lz_cnt = 2;
+        lz_cnt = (m > 0x1) ? 1 : lz_cnt;
+        lz_cnt = (m > 0x3) ? 0 : lz_cnt;
+        OPENVINO_ASSERT(e_norm >= lz_cnt, "e_norm >= lz_cnt");
+        e_norm -= lz_cnt;
+        m = (m << (lz_cnt + 1)) & 0x07;
+    } else if ((e == 0) && (m == 0)) {
+        e_norm = 0;
+    } else if ((e == 0xf) && (m == 0x7)) {
+        e_norm = 0xff;
+        m = 0x4; /* making first mantissa bit 1 */
+    }
+
+    /* set exp and mant */
+    res |= (e_norm << 10);
+    res |= (m << 7);
+    /* sign it */
+    res |= s;
+    return res;
+}
+
+unsigned short convert_fp16_hf8_fp16(ov::float16 inp) {
+    return convert_hf8_fp16(convert_fp16_hf8(inp));
+}
+
+/// <summary>
+/// emulation of convertation fp16 value to hf8 1s-4e-3m format, Hybrid Float
+/// exponent bias is 7
+/// </summary>
+/// <typeparam name="T">Every possible type with 16 bit size</typeparam>
+/// <param name="arg"></param>
+/// <param name="out"></param>
+/// <param name="count"></param>
+template <typename T>
+void convertfp16_hf8_libxsmm(const T* arg,
+                             T* out,
+                             size_t count,
+                             bool use_clamp = true) {
+    __half_t h;
+    for (size_t i = 0; i < count; ++i) {
+        h.f = arg[i];
+        h.u = convert_fp16_hf8_fp16(h.u);
+        out[i] = h.f;
+    }
+}
+
 template <typename ET>
 bool evaluate(ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& destination_type) {
     out.set_shape(arg.get_shape());
@@ -226,12 +349,20 @@ bool evaluate(ov::Tensor& arg, ov::Tensor& out, const ov::element::Type& destina
     if (destination_type == ov::element::bf8)
         convertfp16_bf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
     else if (destination_type == ov::element::hf8) {
-        convertfp16_hf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
+        //convertfp16_hf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
+        convertfp16_hf8_libxsmm(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
     }  else {
         std::cout << "Bad destination_type: " << destination_type << std::endl;
     }
 
     return true;
+}
+
+template <typename T, typename S>
+void apply_scale(T *data, int sz, S scale) {
+    for (int i = 0; i < sz; i++) {
+        data[i] = scale * data[i];
+    }
 }
 
 }  // namespace
