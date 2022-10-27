@@ -328,6 +328,11 @@ void convertfp16_hf8_libxsmm(const T* arg,
                              T* out,
                              size_t count,
                              bool use_clamp = true) {
+    typedef union half_t {
+        unsigned short u;
+        T f;
+    } __half_t;
+
     __half_t h;
     for (size_t i = 0; i < count; ++i) {
         h.f = arg[i];
