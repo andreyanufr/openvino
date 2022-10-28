@@ -45,7 +45,8 @@ bool ConvertFP8::visit_attributes(ov::AttributeVisitor& visitor) {
 //! [op:visit_attributes]
 
 void ConvertFP8::validate() const {
-    OPENVINO_ASSERT(m_destination_type == "bf8" || m_destination_type == "hf8" || m_destination_type == "hf8_eb_7",
+    OPENVINO_ASSERT(m_destination_type == "bf8" || m_destination_type == "hf8" || m_destination_type == "hf8_eb_7" ||
+                    m_destination_type == "hf8_eb_12",
                     "Bad format for f8 conversion type. Allowed types: [ov::element::bf8, ov::element::hf8]");
 }
 
@@ -233,7 +234,9 @@ void convertfp16_hf8_eb12(const T* arg, T* out, size_t count, int exp_bits = 5, 
         h.f = arg[i];
         float inval = ngraph::float16(arg[i]);
         /* flush values below 1-4-3 (offset=4) subnormal range to zero */
-        if (fabs(inval) < 0.5 * 1.2207031e-4)
+        //if (fabs(inval) < 0.5 * 1.2207031e-4)
+        //    h.f = 0;
+        if ((h.u & 0b0111111111111111) < 0b0000010000000000)
             h.f = 0;
 
         short exp_h =
@@ -250,7 +253,7 @@ void convertfp16_hf8_eb12(const T* arg, T* out, size_t count, int exp_bits = 5, 
         int dshift = 0;
         if (exp_h > 2) {  // too large, set it to NaN or inf
             if (use_clamp) {
-                exp_h = 3;
+                exp_h = 2;
                 mantissa_h = 0b0000001110000000;
             } else {
                 mantissa_h = 0;
@@ -259,7 +262,7 @@ void convertfp16_hf8_eb12(const T* arg, T* out, size_t count, int exp_bits = 5, 
             }
         } else if (exp_h < -14) {  /// -14, -13, -12 for rounding
             /* flush values below 1-4-3 (offset=4) subnormal range to zero */
-            exp_h = -16;
+            exp_h = -15;
             mantissa_h = 0;
         }
         /* nearest rounding masks, & 0 00000 000 111 1111 - mantissa bits below hf8 (grs) */
@@ -427,6 +430,8 @@ bool evaluate(ov::Tensor& arg, ov::Tensor& out, const std::string& destination_t
         convertfp16_hf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
     } else if (destination_type == "hf8_eb_7") {
         convertfp16_hf8_libxsmm(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
+    } else if (destination_type == "hf8_eb_12") {
+        convertfp16_hf8_eb12(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
     } else {
         std::cout << "Bad destination_type: " << destination_type << std::endl;
     }
