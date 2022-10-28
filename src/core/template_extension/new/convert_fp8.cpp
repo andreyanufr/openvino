@@ -10,10 +10,11 @@
 using namespace TemplateExtension;
 
 //! [op:ctor]
-ConvertFP8::ConvertFP8(const ov::Output<ov::Node>& arg, const std::string& destination_type)
+ConvertFP8::ConvertFP8(const ov::Output<ov::Node>& arg, const std::string& destination_type, float scale)
     : 
     Op({arg}),
     m_destination_type(destination_type),
+    m_scale(scale),
     m_convert_fp16(std::make_shared<ov::op::v0::Convert>(arg, ov::element::f16)),
     m_convert_fp32(std::make_shared<ov::op::v0::Convert>(arg, ov::element::f32)) {
     constructor_validate_and_infer_types();
@@ -30,7 +31,7 @@ void ConvertFP8::validate_and_infer_types() {
 std::shared_ptr<ov::Node> ConvertFP8::clone_with_new_inputs(const ov::OutputVector& new_args) const {
     OPENVINO_ASSERT(new_args.size() == 1, "Incorrect number of new arguments");
 
-    return std::make_shared<ConvertFP8>(new_args.at(0), m_destination_type);
+    return std::make_shared<ConvertFP8>(new_args.at(0), m_destination_type, m_scale);
 }
 //! [op:copy]
 

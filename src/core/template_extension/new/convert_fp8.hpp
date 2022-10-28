@@ -23,7 +23,7 @@ public:
     OPENVINO_OP("ConvertFP8");
 
     ConvertFP8() = default;
-    ConvertFP8(const ov::Output<ov::Node>& arg, const std::string &destination_type);
+    ConvertFP8(const ov::Output<ov::Node>& arg, const std::string &destination_type, float scale=1.0);
 
     void validate_and_infer_types() override;
     std::shared_ptr<ov::Node> clone_with_new_inputs(const ov::OutputVector& new_args) const override;
