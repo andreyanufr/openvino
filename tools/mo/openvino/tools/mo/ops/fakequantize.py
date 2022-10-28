@@ -111,14 +111,16 @@ class ConvertFP8(Op):
             'in_ports_count': 1,
             'out_ports_count': 1,
             'auto_broadcast': 'numpy',
-            'destination_type': 'hf8'
+            'destination_type': 'hf8',
+            'scale': 1.0
         }
         super().__init__(graph, mandatory_props, attrs)
 
     def supported_attrs(self):
         return [
             'auto_broadcast',
-            'destination_type'
+            'destination_type',
+            'scale'
         ]
 
     @staticmethod
