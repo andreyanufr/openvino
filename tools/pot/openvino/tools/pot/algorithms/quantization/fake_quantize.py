@@ -98,6 +98,8 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
         fq.destination_type = 'bf8'
     else:
         fq.destination_type = 'hf8'
+    if '_weights_' in fq.name:
+        fq.is_weight = True
 
     def _update_node_val(port_idx, value):
         _node = get_node_input(fq, port_idx)

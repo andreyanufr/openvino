@@ -10,11 +10,14 @@
 using namespace TemplateExtension;
 
 //! [op:ctor]
-ConvertFP8::ConvertFP8(const ov::Output<ov::Node>& arg, const std::string& destination_type, float scale)
+ConvertFP8::ConvertFP8(const ov::Output<ov::Node>& arg, const std::string& destination_type,
+                       float scale,
+                       bool is_weight)
     : 
     Op({arg}),
     m_destination_type(destination_type),
     m_scale(scale),
+    m_is_weight(is_weight),
     m_convert_fp16(std::make_shared<ov::op::v0::Convert>(arg, ov::element::f16)),
     m_convert_fp32(std::make_shared<ov::op::v0::Convert>(arg, ov::element::f32)) {
     constructor_validate_and_infer_types();
@@ -31,7 +34,7 @@ void ConvertFP8::validate_and_infer_types() {
 std::shared_ptr<ov::Node> ConvertFP8::clone_with_new_inputs(const ov::OutputVector& new_args) const {
     OPENVINO_ASSERT(new_args.size() == 1, "Incorrect number of new arguments");
 
-    return std::make_shared<ConvertFP8>(new_args.at(0), m_destination_type, m_scale);
+    return std::make_shared<ConvertFP8>(new_args.at(0), m_destination_type, m_scale, m_is_weight);
 }
 //! [op:copy]
 
@@ -40,6 +43,7 @@ bool ConvertFP8::visit_attributes(ov::AttributeVisitor& visitor) {
     validate();
     visitor.on_attribute("destination_type", m_destination_type);
     visitor.on_attribute("scale", m_scale);
+    visitor.on_attribute("is_weight", m_is_weight);
 
     return true;
 }
@@ -447,6 +451,37 @@ void apply_scale(T *data, int sz, S scale) {
     }
 }
 
+
+template <typename T>
+void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale, bool invert = false) {
+    auto dataShape = data.get_shape();
+    auto scaleSize = scale.get_size();
+
+    OPENVINO_ASSERT(dataShape[0] == scaleSize, "Shape mismatch in scale");
+
+    T* dataPtr = static_cast<T*>(data.data());
+    float* scalePtr = static_cast<floar*>(scale.data());
+
+    size_t step = 1;
+    for (size_t i = 1; i < dataShape.size(); i++) {
+        step *= dataShape[i];
+    }
+
+    for (size_t i = 0; i < scaleSize; i++) {
+        float s = scalePtr[i];
+        if (invert) {
+            for (size_t j = 0; j < step; j++) {
+                dataPtr[j] /= s;
+            }
+        } else {
+            for (size_t j = 0; j < step; j++) {
+                dataPtr[j] *= s;
+            }
+        }
+        dataPtr += step;
+    }
+}
+
 }  // namespace
 }  // namespace convert
 
@@ -465,23 +500,21 @@ bool ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inp
 
     m_convert_fp16->evaluate(fp16, inputs);
 
-    if (m_scale > 1.0) {
-        convert_fp8::apply_scale(static_cast<ov::float16*>(fp16[0].data()), fp16[0].get_size(), m_scale);
+    if (m_is_weight) {
+        convert_fp8::apply_per_channel_scale<ov::float16>(fp16[0], inputs[1]);
     }
 
     //convert_fp8::print_tensor(fp16[0], "fp16");
 
     if (outputs[0].get_element_type() == ov::element::f16) {
         convert_fp8::evaluate<unsigned short>(fp16[0], outputs[0], m_destination_type);
-        if (m_scale > 1.0) {
-            convert_fp8::apply_scale(static_cast<ov::float16*>(outputs[0].data()),
-                                     outputs[0].get_size(),
-                                     1.0f / m_scale);
+        if (m_is_weight) {
+            convert_fp8::apply_per_channel_scale<ov::float16>(outputs[0], inputs[1], true);
         }
     }  else if (outputs[0].get_element_type() == ov::element::f32) {
         convert_fp8::evaluate<unsigned short>(fp16[0], fp16[0], m_destination_type);
-        if (m_scale > 1.0) {
-            convert_fp8::apply_scale(static_cast<ov::float16*>(fp16[0].data()), fp16[0].get_size(), 1.0f / m_scale);
+        if (m_is_weight) {
+            convert_fp8::apply_per_channel_scale<ov::float16>(fp16[0], inputs[1], true);
         }
         m_convert_fp32->evaluate(outputs, fp16);
     }

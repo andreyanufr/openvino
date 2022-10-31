@@ -38,7 +38,8 @@ class FakeQuantize(Op):
             'infer': self.infer,
             'in_ports_count': 5,
             'out_ports_count': 1,
-            'auto_broadcast': 'numpy'
+            'auto_broadcast': 'numpy',
+            'is_weight': False,
         }
         super().__init__(graph, mandatory_props, attrs)
         if self.attrs['levels'] is None:
@@ -47,7 +48,8 @@ class FakeQuantize(Op):
     def supported_attrs(self):
         return [
             'levels',
-            'auto_broadcast'
+            'auto_broadcast',
+            'is_weight',
         ]
 
     @staticmethod
