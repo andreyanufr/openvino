@@ -39,7 +39,6 @@ class FakeQuantize(Op):
             'in_ports_count': 5,
             'out_ports_count': 1,
             'auto_broadcast': 'numpy',
-            'is_weight': False,
         }
         super().__init__(graph, mandatory_props, attrs)
         if self.attrs['levels'] is None:
@@ -49,7 +48,6 @@ class FakeQuantize(Op):
         return [
             'levels',
             'auto_broadcast',
-            'is_weight',
         ]
 
     @staticmethod
@@ -110,11 +108,12 @@ class ConvertFP8(Op):
             'version': 'extension',
             'is_eltwise': True,
             'infer': self.infer,
-            'in_ports_count': 1,
+            'in_ports_count': 2,
             'out_ports_count': 1,
             'auto_broadcast': 'numpy',
             'destination_type': 'hf8',
-            'scale': 1.0
+            'scale': 1.0,
+            'is_weight': False,
         }
         super().__init__(graph, mandatory_props, attrs)
 
@@ -122,12 +121,13 @@ class ConvertFP8(Op):
         return [
             'auto_broadcast',
             'destination_type',
-            'scale'
+            'scale',
+            'is_weight'
         ]
 
     @staticmethod
     def infer(node: Node):
-        assert len(node.in_nodes()) == 1
+        assert len(node.in_nodes()) == 2
         assert len(node.out_nodes()) == 1
         x = node.in_node(0)
         assert x.has_valid('shape')
