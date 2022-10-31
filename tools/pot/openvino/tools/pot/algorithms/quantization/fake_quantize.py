@@ -90,26 +90,20 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
     :param min_level: low border of quantization range
     :param max_level: high border of quantization range
     """
-    if output_low is None:
-        output_low = min_level
-    if output_high is None:
-        output_high = max_level
-    min_level = np.mean(min_level)
-    max_level = np.mean(max_level)
-    #print(min_level)
-    #print(max_level)
-    #print(len(max_level))
-    print('Value: ', max(abs(min_level), abs(max_level)))
-    if max(abs(min_level), abs(max_level)) > 15:
+    min_level_mean = np.mean(min_level)
+    max_level_mean = np.mean(max_level)
+    th = max(abs(min_level_mean), abs(max_level_mean))
+    print('Th Value: ', th)
+    if th > 15:
         fq.destination_type = 'bf8'
     else:
         fq.destination_type = 'hf8'
 
-#    def _update_node_val(port_idx, value):
-#        _node = get_node_input(fq, port_idx)
-#        set_node_value(_node, value)
+    def _update_node_val(port_idx, value):
+        _node = get_node_input(fq, port_idx)
+        set_node_value(_node, value)
 
-#    _update_node_val(1, min_level)
+    _update_node_val(1, min_level)
 #    _update_node_val(2, max_level)
 #    _update_node_val(3, output_low)
 #    _update_node_val(4, output_high)
