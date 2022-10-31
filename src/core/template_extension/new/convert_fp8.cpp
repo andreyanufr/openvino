@@ -471,12 +471,14 @@ bool ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inp
 
     //convert_fp8::print_tensor(fp16[0], "fp16");
 
-    if (outputs[0].get_element_type() == ov::element::f16)
+    if (outputs[0].get_element_type() == ov::element::f16) {
         convert_fp8::evaluate<unsigned short>(fp16[0], outputs[0], m_destination_type);
         if (m_scale > 1.0) {
-            convert_fp8::apply_scale(static_cast<ov::float16*>(outputs[0].data()), outputs[0].get_size(), 1.0f/m_scale);
+            convert_fp8::apply_scale(static_cast<ov::float16*>(outputs[0].data()),
+                                     outputs[0].get_size(),
+                                     1.0f / m_scale);
         }
-    else if (outputs[0].get_element_type() == ov::element::f32) {
+    }  else if (outputs[0].get_element_type() == ov::element::f32) {
         convert_fp8::evaluate<unsigned short>(fp16[0], fp16[0], m_destination_type);
         if (m_scale > 1.0) {
             convert_fp8::apply_scale(static_cast<ov::float16*>(fp16[0].data()), fp16[0].get_size(), 1.0f / m_scale);
