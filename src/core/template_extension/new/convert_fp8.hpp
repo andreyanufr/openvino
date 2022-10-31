@@ -23,7 +23,9 @@ public:
     OPENVINO_OP("ConvertFP8");
 
     ConvertFP8() = default;
-    ConvertFP8(const ov::Output<ov::Node>& arg, const std::string &destination_type,
+    ConvertFP8(const ov::Output<ov::Node>& arg,
+               const ov::Output<ov::Node>& input_low,
+               const std::string& destination_type,
                float scale = 1.0,
                bool is_weight = false);
 
