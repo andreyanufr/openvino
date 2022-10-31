@@ -460,7 +460,7 @@ void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale, bool inv
     OPENVINO_ASSERT(dataShape[0] == scaleSize, "Shape mismatch in scale");
 
     T* dataPtr = static_cast<T*>(data.data());
-    float* scalePtr = static_cast<floar*>(scale.data());
+    float* scalePtr = static_cast<float*>(scale.data());
 
     size_t step = 1;
     for (size_t i = 1; i < dataShape.size(); i++) {
