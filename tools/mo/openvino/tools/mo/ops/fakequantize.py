@@ -132,16 +132,4 @@ class ConvertFP8(Op):
 
         assert x.has_valid('shape')
         # TODO Check all inputs[1..4] shapes are broadcastable to inputs[0] shape
-
-        if all([node.in_node(i).has_valid('value') for i in range(2)]):
-            x, input_low = \
-                [float32_array(np.broadcast_to(node.value, x.value.shape)) for node in inputs]
-
-            output = np.zeros_like(x)
-
-            if not node.has_and_set('stop_value_propagation'):
-                node.out_node().value = output
-
         node.out_node().shape = x.shape.copy()
-
-        #node.out_node().value = copy.deepcopy(x.value)
