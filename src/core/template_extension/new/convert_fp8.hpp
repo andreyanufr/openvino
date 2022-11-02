@@ -26,7 +26,6 @@ public:
     ConvertFP8(const ov::Output<ov::Node>& arg,
                const ov::Output<ov::Node>& input_low,
                const std::string& destination_type,
-               float scale = 1.0,
                bool is_weight = false);
 
     void validate_and_infer_types() override;
@@ -38,10 +37,7 @@ public:
 
 private:
     void validate() const;
-    std::shared_ptr<ov::op::v0::Convert> m_convert_fp16;
-    std::shared_ptr<ov::op::v0::Convert> m_convert_fp32;
     std::string m_destination_type = "hf8";
-    float m_scale = 1.0;
     bool m_is_weight = false;
 };
 //! [op:header]

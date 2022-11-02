@@ -112,7 +112,6 @@ class ConvertFP8(Op):
             'out_ports_count': 1,
             'auto_broadcast': 'numpy',
             'destination_type': 'hf8',
-            'scale': 1.0,
             'is_weight': False,
         }
         super().__init__(graph, mandatory_props, attrs)
@@ -121,7 +120,6 @@ class ConvertFP8(Op):
         return [
             'auto_broadcast',
             'destination_type',
-            'scale',
             'is_weight'
         ]
 
@@ -129,9 +127,20 @@ class ConvertFP8(Op):
     def infer(node: Node):
         assert len(node.in_nodes()) == 2
         assert len(node.out_nodes()) == 1
-        x = node.in_node(0)
+        inputs = [node.in_node(i) for i in range(2)]
+        x, input_low = inputs
+
         assert x.has_valid('shape')
         # TODO Check all inputs[1..4] shapes are broadcastable to inputs[0] shape
+
+        if all([node.in_node(i).has_valid('value') for i in range(2)]):
+            x, input_low = \
+                [float32_array(np.broadcast_to(node.value, x.value.shape)) for node in inputs]
+
+            output = np.zeros_like(x)
+
+            if not node.has_and_set('stop_value_propagation'):
+                node.out_node().value = output
 
         node.out_node().shape = x.shape.copy()
 
