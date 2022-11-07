@@ -41,7 +41,7 @@ std::shared_ptr<ov::Node> ConvertFP8::clone_with_new_inputs(const ov::OutputVect
 
 //! [op:visit_attributes]
 bool ConvertFP8::visit_attributes(ov::AttributeVisitor& visitor) {
-    validate();
+    //validate();
     visitor.on_attribute("destination_type", m_destination_type);
     visitor.on_attribute("is_weight", m_is_weight);
 
@@ -220,6 +220,91 @@ void convertfp16_hf8(const T* arg, T* out, size_t count, int exp_bits = 5,
     }
 }
 
+
+/// <summary>
+/// emulation of convertation fp16 value to hf8 1s-4e-3m format, Hybrid Float
+/// </summary>
+/// <typeparam name="T">Every possible type with 16 bit size</typeparam>
+/// <param name="arg"></param>
+/// <param name="out"></param>
+/// <param name="count"></param>
+// Exponent denormal values 0 -11
+// Exponent normal values 1..14 -10..3 (11 - exponent)
+// Exponent NaN values 15 4
+template <typename T>
+void convertfp16_hf8_ext(const T* arg, T* out, size_t count, int exp_bits = 5, int mbits = 9, bool use_clamp = true) {
+    typedef union half_t {
+        unsigned short u;
+        T f;
+    } __half_t;
+
+    int non_mant_bits = exp_bits + 1; /* exponent + sign */         ///  6 - ?
+    int lshift = 10 - (mbits - non_mant_bits);                      /// 10 - (9 - 6) == 7 - ???
+    unsigned short rne_mask = 1;                                    /* round to nearest even mask */
+    unsigned short mask_mant = (unsigned short)(0xFFFF << lshift);  // 1111111111111111 -> 1 11111 1111000000
+    unsigned short grs_bitmask = 0x007F;                            /// 0 00000 0001111111
+    unsigned short rne_tie = 0x00C0;                                /// 0 00000 0011000000
+
+    __half_t h;
+    for (size_t i = 0; i < count; ++i) {
+        h.f = arg[i];
+        float inval = ngraph::float16(arg[i]);
+        /* flush values below 1-4-3 (offset=4) subnormal range to zero */
+        if (fabs(inval) < 1.2207031e-4)
+            h.f = 0;
+
+        short exp_h =
+            (short)((h.u & 0x7C00) >> 10) - 15;  /// 0111110000000000 -> 0000000000011111 - 15 - biased exponent
+        short sign_h = (h.u & 0x8000);           /// 1 00000 0000000000
+        short mantissa_h = (h.u & 0x03FF);       /// 0 00000 1111111111
+        ///(h.u && 0111111111111111) < 0 10010 1110000000 (19326) - ????
+        unsigned short can_round = ((h.u & 0x7FFF) < 0x4B80) ? 1 : 0;
+        unsigned short is_normal = 1;
+
+        is_normal = (((h.u & 0x7C00) <= 0x7800) && ((h.u & 0x7C00) >= 0x0400)) ? 1 : 0;
+        unsigned short is_naninf = ((h.u & 0x7C00) == 0x7C00) ? 1 : 0;
+
+        int dshift = 0;
+        if (exp_h > 4) {  // too large, set it to NaN or inf
+            if (use_clamp) {
+                exp_h = 4;
+                mantissa_h = 0b0000001100000000;
+            } else {
+                mantissa_h = 0;
+                exp_h = 16;
+                is_naninf = 1;
+            }
+        } else if (exp_h < -13) {  /// -13, -12, -11 for rounding
+            /* flush values below 1-4-3 (offset=4) subnormal range to zero */
+            exp_h = -15;
+            mantissa_h = 0;
+        }
+
+        if (exp_h == 4 && mantissa_h > 0b0000001100000000) {
+            mantissa_h = 0b0000001100000000;
+        }
+        /* nearest rounding masks, & 0 00000 000 111 1111 - mantissa bits below hf8 (grs) */
+        unsigned short rnmask = (mantissa_h & grs_bitmask);
+        /* & 0 00000 0011000000 - edge between hf8 and fp16 mantissa */
+        unsigned short rnmask_tie = (mantissa_h & rne_tie);
+        if (!is_naninf && can_round && rne_mask) {
+            /* round to nearest even, if rne_mask is enabled */
+            /// rnmask > 0 00000 0001000000(64) or 0 00000 0011000000 - edge bits is 1
+            /// += 0 00000 0010000000
+            mantissa_h += (((rnmask > 0x0040) || (rnmask_tie == rne_tie)) << lshift);
+        }
+        if (exp_h < -10) { /* handle denormals -13, -12, -11, dshift 1, 2, 3 */
+            dshift = (-10 - exp_h);
+            mantissa_h = mantissa_h >> dshift;
+        }
+        mantissa_h &= mask_mant; /* truncation */
+        mantissa_h <<= dshift;
+        mantissa_h += ((exp_h + 15) << 10);
+        h.u = mantissa_h | sign_h;
+        out[i] = h.f;
+    }
+}
+
 template <typename T>
 void convertfp16_hf8_eb12(const T* arg, T* out, size_t count, int exp_bits = 5, int mbits = 9, bool use_clamp = true) {
     typedef union half_t {
@@ -303,18 +388,18 @@ unsigned char convert_fp16_hf8(ov::float16 inp) {
     unsigned char res = 0;
     unsigned short s, e, m, e_f16, m_f16;
     unsigned int fixup;
-    unsigned short in = inp;
+    unsigned short in = inp.to_bits();
 
     s = (in & 0x8000) >> 8;
     e_f16 = (in & 0x7c00) >> 10;  /// & 0b0111110000000000
     m_f16 = (in & 0x03ff);        /// & 0b0000001111111111
 
     /* special value --> make it NaN */
-    if (e_f16 == 0x1f) {  // == 31
-        e = 0xf;
-        m = 0x7;
+    if (e_f16 == 0x1f) {  // == 31 or 0000000000011111
+        e = 0xf; // 0000000000001111
+        m = 0x7; // 0000000000000111
         /* overflow --> make it NaN */
-    } else if ((e_f16 > (f16_bias - f8_bias + 15)) || ((e_f16 == (f16_bias - f8_bias + 15)) && (m_f16 > 0x0300))) {
+    } else if ((e_f16 > (f16_bias - f8_bias + 15)) || ((e_f16 == (f16_bias - f8_bias + 15)) && (m_f16 > 0x0300))) { // exp >= 10111 ???
         e = 0xf;
         m = 0x7;
         /* smaller than denormal f8 + eps */
@@ -429,10 +514,12 @@ bool evaluate(ov::Tensor& arg, ov::Tensor& out, const std::string& destination_t
         return false;
     }
 
-    if (destination_type == "bf8")
+    if (destination_type == "bf8") {
         convertfp16_bf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
-    else if (destination_type == "hf8") {
+    } else if (destination_type == "hf8") {
         convertfp16_hf8(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
+    } else if (destination_type == "hf8_ext") {
+        convertfp16_hf8_ext(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
     } else if (destination_type == "hf8_eb_7") {
         convertfp16_hf8_libxsmm(static_cast<ET*>(arg.data()), static_cast<ET*>(out.data()), element_count);
     } else if (destination_type == "hf8_eb_12") {
@@ -517,7 +604,7 @@ void convert_to_fp32(const ov::Tensor& in, ov::Tensor& out) {
 
 //! [op:evaluate]
 bool ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs) const {
-    validate();
+    //validate();
 
     ov::TensorVector fp16;
 
