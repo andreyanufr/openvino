@@ -403,7 +403,7 @@ unsigned char convert_fp16_hf8(ov::float16 inp) {
         e = 0xf;
         m = 0x7;
         /* smaller than denormal f8 + eps */
-    } else if (e_f16 < f16_bias - f8_bias - 3) {
+    } else if (e_f16 < f16_bias - f8_bias - 3) { // 5
         e = 0x0;
         m = 0x0;
         /* denormal */
@@ -571,6 +571,21 @@ void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale, bool inv
 
 
 void convert_to_fp16(const ov::Tensor& in, ov::Tensor& out) {
+    auto inSz = in.get_size();
+    auto outSz = out.get_size();
+
+    OPENVINO_ASSERT(inSz == outSz, "Shape mismatch in scale");
+
+    float* inPtr = static_cast<float*>(in.data());
+    ov::float16* outPtr = static_cast<ov::float16*>(out.data());
+
+    for (size_t i = 0; i < inSz; i++) {
+        outPtr[i] = static_cast<ov::float16>(inPtr[i]);
+    }
+}
+
+
+void convert_to_fp16_with_scale(const ov::Tensor& in, ov::Tensor& out, ov::Tensor& scale) {
     auto inSz = in.get_size();
     auto outSz = out.get_size();
 
