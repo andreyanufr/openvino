@@ -531,6 +531,46 @@ bool evaluate(ov::Tensor& arg, ov::Tensor& out, const std::string& destination_t
     return true;
 }
 
+
+template <typename ET>
+bool evaluate_mixed(ov::Tensor& arg, ov::Tensor& out, const ov::Tensor& scale) {
+    out.set_shape(arg.get_shape());
+    size_t element_count = shape_size(out.get_shape());
+
+    if ((ov::element::f16 != arg.get_element_type()) || ov::element::f16 != out.get_element_type()) {
+        std::cout << "Bad arg or out types: " << arg.get_element_type() << " " << out.get_element_type() << std::endl;
+        return false;
+    }
+
+    if (ov::element::f32 != scale.get_element_type()) {
+        std::cout << "Bad type of scale: " << scale.get_element_type() << std::endl;
+        return false;
+    }
+
+    auto dataShape = arg.get_shape();
+    auto scaleSize = scale.get_size();
+
+    OPENVINO_ASSERT(dataShape[0] == scaleSize, "Shape mismatch in scale");
+
+    size_t step = 1;
+    for (size_t i = 1; i < dataShape.size(); i++) {
+        step *= dataShape[i];
+    }
+
+    const float* scalePtr = static_cast<float*>(scale.data());
+    for (size_t i = 0; i < scaleSize; i++) {
+        auto inPtr = static_cast<ET*>(arg.data()) + i * step;
+        auto outPtr = static_cast<ET*>(out.data()) + i * step;
+        if (scalePtr[i] > 1.0) {
+            convertfp16_bf8(intPtr, outPtr, step);
+        } else {
+            convertfp16_hf8_ext(intPtr, outPtr, step);
+        }
+    }
+
+    return true;
+}
+
 template <typename T, typename S>
 void apply_scale(T *data, int sz, S scale) {
     for (int i = 0; i < sz; i++) {
@@ -645,21 +685,17 @@ bool ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inp
     //m_convert_fp16->evaluate(fp16, inputs);
     convert_fp8::convert_to_fp16(inputs[0], fp16[0]);
 
-    if (m_is_weight) {
-        convert_fp8::apply_per_channel_scale<ov::float16>(fp16[0], inputs[1]);
-    }
-
-    //convert_fp8::print_tensor(fp16[0], "fp16");
-
     if (outputs[0].get_element_type() == ov::element::f16) {
-        convert_fp8::evaluate<unsigned short>(fp16[0], outputs[0], m_destination_type);
         if (m_is_weight) {
-            convert_fp8::apply_per_channel_scale<ov::float16>(outputs[0], inputs[1], true);
+            convert_fp8::evaluate_mixed<unsigned short>(fp16[0], outputs[0], inputs[1]);
+        } else {
+            convert_fp8::evaluate<unsigned short>(fp16[0], outputs[0], m_destination_type);
         }
     }  else if (outputs[0].get_element_type() == ov::element::f32) {
-        convert_fp8::evaluate<unsigned short>(fp16[0], fp16[0], m_destination_type);
         if (m_is_weight) {
-            convert_fp8::apply_per_channel_scale<ov::float16>(fp16[0], inputs[1], true);
+            convert_fp8::evaluate_mixed<unsigned short>(fp16[0], fp16[0], inputs[1]);
+        } else {
+            convert_fp8::evaluate<unsigned short>(fp16[0], fp16[0], m_destination_type);
         }
         //m_convert_fp32->evaluate(outputs, fp16);
         convert_fp8::convert_to_fp32(fp16[0], outputs[0]);
