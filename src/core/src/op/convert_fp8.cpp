@@ -600,12 +600,20 @@ bool op::v1::ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVec
                                         fp16[0].data<ov::float16>(),
                                         element_count);
 
+    if (m_apply_scale) {
+        convert_fp8::apply_per_channel_scale<ov::float16>(fp16[0], inputs[1]);
+    }
+
     if (outputs[0].get_element_type() == ov::element::f16)
         convert_fp8::evaluate<unsigned short>(fp16[0], outputs[0], m_destination_type);
     else if (outputs[0].get_element_type() == ov::element::f32) {
         convert_fp8::evaluate<unsigned short>(fp16[0], fp16[0], m_destination_type);
         ngraph::runtime::reference::convert(fp16[0].data<ov::float16>(), outputs[0].data<float>(),
                                             element_count);
+    }
+
+    if (m_apply_scale) {
+        convert_fp8::apply_per_channel_scale<ov::float16>(outputs[0], inputs[1], true);
     }
 
     return true;
