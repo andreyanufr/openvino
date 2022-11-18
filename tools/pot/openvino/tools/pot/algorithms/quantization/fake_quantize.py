@@ -510,7 +510,8 @@ def set_rescaling_factors(config, model, scaling_factor=2.0):
     """
 
     fqs_to_rescale = []
-    saturation_fix = config.get('saturation_fix', 'first_layer')
+    #saturation_fix = config.get('saturation_fix', 'no')
+    saturation_fix = 'no'
 
     if config['target_device'] not in ['CPU', 'ANY'] \
             or not get_nodes_by_type(model, ['Convolution'], recursively=False) \
