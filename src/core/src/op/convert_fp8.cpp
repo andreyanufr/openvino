@@ -18,7 +18,7 @@ op::v1::ConvertFP8::ConvertFP8() : Op(), m_destination_type("hf8_ext"), m_apply_
 op::v1::ConvertFP8::ConvertFP8(const ov::Output<ov::Node>& arg,
                                const ov::Output<ov::Node>& scale,
                                const std::string& destination_type,
-                               const bool& apply_scale)
+                               bool apply_scale)
     : Op({arg, scale}),
       m_destination_type(destination_type),
       m_apply_scale(apply_scale) {
@@ -560,48 +560,6 @@ void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale, bool inv
             }
         }
         dataPtr += step;
-    }
-}
-
-void convert_to_fp16(const ov::Tensor& in, ov::Tensor& out) {
-    auto inSz = in.get_size();
-    auto outSz = out.get_size();
-
-    OPENVINO_ASSERT(inSz == outSz, "Shape mismatch in scale");
-
-    float* inPtr = static_cast<float*>(in.data());
-    ov::float16* outPtr = static_cast<ov::float16*>(out.data());
-
-    for (size_t i = 0; i < inSz; i++) {
-        outPtr[i] = ov::float16(inPtr[i]);
-    }
-}
-
-void convert_to_fp16_with_scale(const ov::Tensor& in, ov::Tensor& out, ov::Tensor& scale) {
-    auto inSz = in.get_size();
-    auto outSz = out.get_size();
-
-    OPENVINO_ASSERT(inSz == outSz, "Shape mismatch in scale");
-
-    float* inPtr = static_cast<float*>(in.data());
-    ov::float16* outPtr = static_cast<ov::float16*>(out.data());
-
-    for (size_t i = 0; i < inSz; i++) {
-        outPtr[i] = static_cast<ov::float16>(inPtr[i]);
-    }
-}
-
-void convert_to_fp32(const ov::Tensor& in, ov::Tensor& out) {
-    auto inSz = in.get_size();
-    auto outSz = out.get_size();
-
-    OPENVINO_ASSERT(inSz == outSz, "Shape mismatch in scale");
-
-    ov::float16* inPtr = static_cast<ov::float16*>(in.data());
-    float* outPtr = static_cast<float*>(out.data());
-
-    for (size_t i = 0; i < inSz; i++) {
-        outPtr[i] = float(inPtr[i]);
     }
 }
 
