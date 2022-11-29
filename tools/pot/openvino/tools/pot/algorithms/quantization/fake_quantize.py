@@ -5,6 +5,7 @@ from copy import copy, deepcopy
 
 import numpy as np
 from addict import Dict
+from bisect import bisect_left
 
 from .fake_quantize_configuration import read_all_fake_quantize_configurations, get_configurations_by_preset, \
     get_configurations_by_qscheme, find_fqs_to_unify, add_range_estimator_configs, change_configurations_by_model_type
@@ -191,10 +192,48 @@ def compute_scale(node):
 
     if weights is None:
         return None
-
-    data = weights.value
+    try:
+        data = weights.value
+    except:
+        return None
 
     return compute_best_scales(data)
+
+
+def round_scale(value):
+    quants = [-28.0, -26.0, -24.0, -22.0, -20.0, -18.0, -16.0, -15.0, -14.0, -13.0, -12.0, -11.0, -10.0, -9.0, -8.0,
+              -7.5, -7.0, -6.5, -6.0, -5.5, -5.0, -4.5, -4.0, -3.75, -3.5, -3.25, -3.0, -2.75, -2.5, -2.25, -2.0,
+              -1.875, -1.75, -1.625, -1.5, -1.375, -1.25, -1.125, -1.0, -0.9375, -0.875, -0.8125, -0.75, -0.6875,
+              -0.625, -0.5625, -0.5, -0.46875, -0.4375, -0.40625, -0.375, -0.34375, -0.3125, -0.28125, -0.25, -0.234375,
+              -0.21875, -0.203125, -0.1875, -0.171875, -0.15625, -0.140625, -0.125, -0.117188, -0.109375, -0.101562,
+              -0.09375, -0.0859375, -0.078125, -0.0703125, -0.0625, -0.0585938, -0.0546875, -0.0507812, -0.046875,
+              -0.0429688, -0.0390625, -0.0351562, -0.03125, -0.0292969, -0.0273438, -0.0253906, -0.0234375, -0.0214844,
+              -0.0195312, -0.0175781, -0.015625, -0.0146484, -0.0136719, -0.0126953, -0.0117188, -0.0107422,
+              -0.00976562, -0.00878906, -0.0078125, -0.00732422, -0.00683594, -0.00634766, -0.00585938, -0.00537109,
+              -0.00488281, -0.00439453, -0.00390625, -0.00366211, -0.00341797, -0.00317383, -0.00292969, -0.00268555,
+              -0.00244141, -0.00219727, -0.00195312, -0.00183105, -0.00170898, -0.00158691, -0.00146484, -0.00134277,
+              -0.0012207, -0.00109863, -0.000976562, -0.000854492, -0.000732422, -0.000610352, -0.000488281,
+              -0.000366211, -0.000244141, -0.00012207, 0.0, 0.00012207, 0.000244141, 0.000366211, 0.000488281,
+              0.000610352, 0.000732422, 0.000854492, 0.000976562, 0.00109863, 0.0012207, 0.00134277, 0.00146484,
+              0.00158691, 0.00170898, 0.00183105, 0.00195312, 0.00219727, 0.00244141, 0.00268555, 0.00292969,
+              0.00317383, 0.00341797, 0.00366211, 0.00390625, 0.00439453, 0.00488281, 0.00537109, 0.00585938,
+              0.00634766, 0.00683594, 0.00732422, 0.0078125, 0.00878906, 0.00976562, 0.0107422, 0.0117188, 0.0126953,
+              0.0136719, 0.0146484, 0.015625, 0.0175781, 0.0195312, 0.0214844, 0.0234375, 0.0253906, 0.0273438,
+              0.0292969, 0.03125, 0.0351562, 0.0390625, 0.0429688, 0.046875, 0.0507812, 0.0546875, 0.0585938, 0.0625,
+              0.0703125, 0.078125, 0.0859375, 0.09375, 0.101562, 0.109375, 0.117188, 0.125, 0.140625, 0.15625, 0.171875,
+              0.1875, 0.203125, 0.21875, 0.234375, 0.25, 0.28125, 0.3125, 0.34375, 0.375, 0.40625, 0.4375, 0.46875, 0.5,
+              0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.125, 1.25, 1.375, 1.5, 1.625, 1.75, 1.875, 2.0,
+              2.25, 2.5, 2.75, 3.0, 3.25, 3.5, 3.75, 4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 9.0, 10.0, 11.0, 12.0,
+              13.0, 14.0, 15.0, 16.0, 18.0, 20.0, 22.0, 24.0, 26.0, 28.0]
+
+    quantized_data = find_closest(quants, value)
+
+    return quantized_data
+
+
+def round_scales(scale):
+    rnd_fn = np.vectorize(round_scale)
+    return rnd_fn(scale)
 
 
 def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_high=None):
@@ -203,20 +242,49 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
     :param min_level: low border of quantization range
     :param max_level: high border of quantization range
     """
-    min_level_mean = np.mean(min_level)
-    max_level_mean = np.mean(max_level)
+    min_level_mean = np.min(min_level)
+    max_level_mean = np.max(max_level)
     th = max(abs(min_level_mean), abs(max_level_mean))
+
+    max_vals = {"hf8_ext": 28, "hf8_libxsmm": 448, "bf8": 57344}
+
     print(fq.name, ' th value: ', th)
-    if th > 15:
-        fq.destination_type = 'bf8'
+    if th > 15.0:
+        fq.destination_type = 'hf8_libxsmm'  # 'bf8'
     else:
-        fq.destination_type = 'hf8_ext'
+        fq.destination_type = 'hf8_ext'  # 'hf8_libxsmm' #'hf8_ext'
+    scale = max_level
+
+    if fq.destination_type in max_vals and 'fq_weights' in fq.name:
+        scale = 0.5 * max_vals[fq.destination_type] / np.maximum(max_level, np.abs(min_level))
+        fq.apply_scale = True
+
+    if 'fq_input' in fq.name:
+        sz = 1
+        if hasattr(scale, 'shape'):
+            for s in scale.shape:
+                sz *= s
+        if sz > 1:
+            scale = 0.5 * (max_level + min_level)
+            scale = 0.5 * round_scales(scale) / (scale + np.finfo(float).eps)
+            fq.apply_scale = True
+            print("Per channel scale: ", fq.name, scale.shape, scale)
+        # else:
+        #     #scale = 0.5 * (max_level + min_level)
+        #     scale = max_level
+        #     scale = 0.5 * max_vals[fq.destination_type] / (scale + np.finfo(float).eps)
+        #     print("Per tensor scale: ", fq.name, scale.shape, scale)
+        #     fq.apply_scale = True
+
+    print(fq.name, ' th value: ', th, fq.destination_type, fq.apply_scale, scale.shape)
 
     def _update_node_val(port_idx, value):
         _node = get_node_input(fq, port_idx)
         set_node_value(_node, value)
 
-    _update_node_val(1, min_level)
+    _update_node_val(1, scale)
+
+
 #    _update_node_val(2, max_level)
 #    _update_node_val(3, output_low)
 #    _update_node_val(4, output_high)
@@ -258,7 +326,7 @@ def compute_stats_layouts(config, model, qscheme=None):
             fq_config['signed'] = True
 
         fake_quantize_config[fq.fullname] = fq_config
-        #fq.levels = compute_levels(fq_config, is_weights)
+        # fq.levels = compute_levels(fq_config, is_weights)
 
     return fake_quantize_config
 
@@ -360,13 +428,15 @@ def symmetric_range(node, fq, weights_stats,
         max_level = weights_stats[node_output.fullname]['max']
         max_level = fix_zero_filters_symmetric(max_level)
         min_level = -max_level
+        # min_level = weights_stats[node_output.fullname]['min']
+        # min_level = fix_zero_filters_symmetric(min_level)
     elif name in batch_inputs_stats:
         max_level = batch_inputs_stats[name]['max']
         min_level = batch_inputs_stats[name]['min']
         max_level = fix_zero_filters_symmetric(max_level)
         signed = fake_quantize_config[fq.fullname]['signed']
-        min_level = -max_level #np.zeros(max_level.shape) if np.all(min_level >= 0) and not signed else \
-            #-max_level * fq.levels / (fq.levels - 2)
+        min_level = -max_level  # np.zeros(max_level.shape) if np.all(min_level >= 0) and not signed else \
+        # -max_level * fq.levels / (fq.levels - 2)
     else:
         raise Exception(
             'WARNING: Fake quantize node {} is missed'.format(fq.fullname))
@@ -590,7 +660,7 @@ def get_num_levels(x: np.ndarray) -> int:
     x = x.flatten()
     hist, _ = np.histogram(x, NUM_BINS)
     non_empty_bins = [i for i, v in enumerate(hist) if v > 0]
-    deltas = [non_empty_bins[i]-non_empty_bins[i-1] for i in range(1, len(non_empty_bins))]
+    deltas = [non_empty_bins[i] - non_empty_bins[i - 1] for i in range(1, len(non_empty_bins))]
     if deltas == []:
         return 0
     d = min(deltas)
