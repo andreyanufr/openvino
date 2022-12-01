@@ -17,9 +17,10 @@ op::v1::ConvertFP8::ConvertFP8() : Op(), m_destination_type("hf8_ext"), m_apply_
 //! [op:ctor]
 op::v1::ConvertFP8::ConvertFP8(const ov::Output<ov::Node>& arg,
                                const ov::Output<ov::Node>& scale,
+                               const ov::Output<ov::Node>& offset,
                                const std::string& destination_type,
                                bool apply_scale)
-    : Op({arg, scale}),
+    : Op({arg, scale, offset}),
       m_destination_type(destination_type),
       m_apply_scale(apply_scale) {
     validate();
@@ -39,7 +40,11 @@ void op::v1::ConvertFP8::validate_and_infer_types() {
 std::shared_ptr<ov::Node> op::v1::ConvertFP8::clone_with_new_inputs(const ov::OutputVector& new_args) const {
     OPENVINO_ASSERT(new_args.size() == 2, "Incorrect number of new arguments");
 
-    return std::make_shared<ConvertFP8>(new_args.at(0), new_args.at(1), m_destination_type, m_apply_scale);
+    return std::make_shared<ConvertFP8>(new_args.at(0),
+                                        new_args.at(1),
+                                        new_args.at(2),
+                                        m_destination_type,
+                                        m_apply_scale);
 }
 //! [op:copy]
 
