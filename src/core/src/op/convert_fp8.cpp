@@ -589,7 +589,7 @@ bool op::v1::ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVec
     ngraph::runtime::reference::convert(inputs[0].data<float>(), fp16[0].data<ov::float16>(), element_count);
 
     if (m_apply_scale) {
-        convert_fp8::apply_per_channel_scale<ov::float16>(fp16[0], inputs[1]);
+        convert_fp8::apply_per_channel_scale<ov::float16>(fp16[0], inputs[1], inputs[2]);
     }
 
     if (outputs[0].get_element_type() == ov::element::f16)
@@ -601,9 +601,9 @@ bool op::v1::ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVec
 
     if (m_apply_scale) {
         if (outputs[0].get_element_type() == ov::element::f32)
-            convert_fp8::apply_per_channel_scale<float>(outputs[0], inputs[1], true);
+            convert_fp8::apply_per_channel_scale<float>(outputs[0], inputs[1], inputs[2], true);
         else
-            convert_fp8::apply_per_channel_scale<ov::float16>(outputs[0], inputs[1], true);
+            convert_fp8::apply_per_channel_scale<ov::float16>(outputs[0], inputs[1], inputs[2], true);
     }
 
     return true;
