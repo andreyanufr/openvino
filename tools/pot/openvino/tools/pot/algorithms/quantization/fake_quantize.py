@@ -267,7 +267,7 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
                 sz *= s
         if sz > 1:
             offset = 0.5 * (max_level + min_level)
-            offset = round_scale(offset)
+            offset = round_scales(offset)
 
             denum = np.maximum(np.abs(max_level - offset), np.abs(min_level - offset)) + np.finfo(float).eps
             scale = 0.5 * max_vals[fq.destination_type] / denum
