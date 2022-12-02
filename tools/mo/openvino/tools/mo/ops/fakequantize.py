@@ -125,7 +125,7 @@ class ConvertFP8(Op):
 
     @staticmethod
     def infer(node: Node):
-        assert len(node.in_nodes()) == 2
+        assert len(node.in_nodes()) == 3
         assert len(node.out_nodes()) == 1
         inputs = [node.in_node(i) for i in range(2)]
         x, input_low = inputs
