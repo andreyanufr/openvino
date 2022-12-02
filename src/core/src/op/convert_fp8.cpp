@@ -500,13 +500,15 @@ void apply_scale(T* data, int sz, S scale) {
 }
 
 template <typename T>
-void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale, bool invert = false) {
+void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale,
+                             const ov::Tensor& offset, bool invert = false) {
     auto dataShape = data.get_shape();
     auto scaleShape = scale.get_shape();
     auto scaleSize = scale.get_size();
 
     T* dataPtr = static_cast<T*>(data.data());
     float* scalePtr = static_cast<float*>(scale.data());
+    float* offsetPtr = static_cast<float*>(offset.data());
 
     if (scaleSize == 1) {  // per tensor scale, probably for activation
         auto dataSize = data.get_size();
@@ -530,15 +532,20 @@ void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale, bool inv
             for (size_t i = 0; i < scaleSize; i++) {
                 // T s = static_cast<T>(scalePtr[i]);
                 float s = scalePtr[i];
+                float o = -offsetPtr[i];
                 // if (invert)
                 //     s = -s;
                 // for (size_t j = 0; j < step; j++) {
                 //     dataPtr[j] -= s;
                 // }
-                if (invert)
-                    s = 1.0 / s;
-                for (size_t j = 0; j < step; j++) {
-                    dataPtr[j] *= s;
+                if (invert) {
+                    for (size_t j = 0; j < step; j++) {
+                        dataPtr[j] = dataPtr[j] / s + o;
+                    }
+                } else {
+                    for (size_t j = 0; j < step; j++) {
+                        dataPtr[j] = (dataPtr[j] - o) * s;
+                    }
                 }
                 dataPtr += step;
             }

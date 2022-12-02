@@ -108,7 +108,7 @@ class ConvertFP8(Op):
             'version': 'opset1',
             'is_eltwise': True,
             'infer': self.infer,
-            'in_ports_count': 2,
+            'in_ports_count': 3,
             'out_ports_count': 1,
             'auto_broadcast': 'numpy',
             'destination_type': 'hf8_ext',

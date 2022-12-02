@@ -254,6 +254,7 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
     else:
         fq.destination_type = 'hf8_ext'  # 'hf8_libxsmm' #'hf8_ext'
     scale = max_level
+    offset = np.zeros_like(scale)
 
     if fq.destination_type in max_vals and 'fq_weights' in fq.name:
         scale = 0.5 * max_vals[fq.destination_type] / np.maximum(max_level, np.abs(min_level))
@@ -265,8 +266,11 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
             for s in scale.shape:
                 sz *= s
         if sz > 1:
-            scale = 0.5 * (max_level + min_level)
-            scale = 0.5 * round_scales(scale) / (scale + np.finfo(float).eps)
+            offset = 0.5 * (max_level + min_level)
+            offset = round_scale(offset)
+
+            denum = np.maximum(np.abs(max_level - offset), np.abs(min_level - offset)) + np.finfo(float).eps
+            scale = 0.5 * max_vals[fq.destination_type] / denum
             fq.apply_scale = True
             print("Per channel scale: ", fq.name, scale.shape, scale)
         # else:
@@ -283,6 +287,7 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
         set_node_value(_node, value)
 
     _update_node_val(1, scale)
+    _update_node_val(2, offset)
 
 
 #    _update_node_val(2, max_level)
