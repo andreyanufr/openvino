@@ -18,11 +18,11 @@ DEFAULT_ACTIVATIONS_RANGE_ESTIMATOR_CONFIG = {
     'pertensor': {
         'symmetric': {
             'min': {'aggregator': 'min', 'type': 'min'},
-            'max': {'aggregator': 'mean', 'type': 'abs_max'}
+            'max': {'aggregator': 'max', 'type': 'max'}
         },
         'asymmetric': {
-            'min': {'aggregator': 'mean', 'type': 'min'},
-            'max': {'aggregator': 'mean', 'type': 'max'}
+            'min': {'aggregator': 'min', 'type': 'min'},
+            'max': {'aggregator': 'max', 'type': 'max'}
         }
     }}
 
@@ -84,11 +84,11 @@ DEFAULT_OUTPUTS_RANGE_ESTIMATOR_CONFIG = {
     'pertensor': {
         'symmetric': {
             'min': {'aggregator': 'min', 'type': 'min'},
-            'max': {'aggregator': 'mean', 'type': 'abs_max'}
+            'max': {'aggregator': 'max', 'type': 'max'}
         },
         'asymmetric': {
-            'min': {'aggregator': 'mean', 'type': 'min'},
-            'max': {'aggregator': 'mean', 'type': 'max'}
+            'min': {'aggregator': 'min', 'type': 'min'},
+            'max': {'aggregator': 'max', 'type': 'max'}
         }
     }}
 

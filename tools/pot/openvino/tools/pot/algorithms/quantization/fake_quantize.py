@@ -255,10 +255,8 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
         fq.destination_type = 'hf8_ext'  # 'hf8_libxsmm' #'hf8_ext'
     scale = max_level
     offset = np.zeros_like(scale)
-
-    if fq.destination_type in max_vals and 'fq_weights' in fq.name:
-        scale = 0.5 * max_vals[fq.destination_type] / np.maximum(max_level, np.abs(min_level))
-        fq.apply_scale = True
+    scale = max_vals[fq.destination_type] / np.maximum(max_level, np.abs(min_level) + np.finfo(float).eps)
+    fq.apply_scale = True
 
     if 'fq_input' in fq.name:
         sz = 1
@@ -266,20 +264,13 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
             for s in scale.shape:
                 sz *= s
         if sz > 1:
-            offset = 0.5 * (max_level + min_level)
+            offset = min_level
             offset = round_scales(offset)
-
-            denum = np.maximum(np.abs(max_level - offset), np.abs(min_level - offset)) + np.finfo(float).eps
-            scale = 0.5 * max_vals[fq.destination_type] / denum
-            fq.apply_scale = True
-            print("Per channel scale: ", fq.name, scale.shape, scale)
-        # else:
-        #     #scale = 0.5 * (max_level + min_level)
-        #     scale = max_level
-        #     scale = 0.5 * max_vals[fq.destination_type] / (scale + np.finfo(float).eps)
-        #     print("Per tensor scale: ", fq.name, scale.shape, scale)
-        #     fq.apply_scale = True
-
+            denum = np.abs(max_level - offset)+ np.finfo(float).eps
+            scale = max_vals[fq.destination_type] / denum
+            print("Per channel scale: ", fq.name)
+            print("Scale: ", scale.flatten())
+            print("Offset: ", offset.flatten())
     print(fq.name, ' th value: ', th, fq.destination_type, fq.apply_scale, scale.shape)
 
     def _update_node_val(port_idx, value):
