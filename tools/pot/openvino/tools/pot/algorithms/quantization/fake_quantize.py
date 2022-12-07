@@ -559,8 +559,15 @@ def broadcast_fq_values(fq, node, min_level, max_level, fq_config):
         if fq_config[fq.fullname]['granularity'] == 'perchannel':
             bounds_shape[1] = input_shape[1]
 
-    min_level = min_level.reshape(bounds_shape)
-    max_level = max_level.reshape(bounds_shape)
+    try:
+        min_level = min_level.reshape(bounds_shape)
+    except:
+        min_level = min_level.mean().reshape(bounds_shape)
+
+    try:
+        max_level = max_level.reshape(bounds_shape)
+    except:
+        max_level = max_level.mean().reshape(bounds_shape)
 
     return min_level, max_level
 
