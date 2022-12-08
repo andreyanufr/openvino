@@ -322,16 +322,16 @@ unsigned char convert_fp16_hf8_libxsmm(ov::float16 inp) {
     e_f16 = (in & 0x7c00) >> 10;  /// & 0b0111110000000000
     m_f16 = (in & 0x03ff);        /// & 0b0000001111111111
 
-    /* special value --> make it NaN */
+    /* special value --> make it max */
     if (e_f16 == 0x1f) {  // == 31 or 0000000000011111
         e = 0xf;          // 0000000000001111
-        m = 0x7;          // 0000000000000111
-        /* overflow --> make it NaN */
+        m = 0x6;          // 0000000000000110
+        /* overflow --> make it max */
     } else if ((e_f16 > (f16_bias - f8_bias + 15)) ||  // 23 (exp - bias > 8 or 1111)
                ((e_f16 == (f16_bias - f8_bias + 15)) &&
                 (m_f16 > 0x0300))) {  // (exp - bias == 8 or 1111) and mantissa > 0s00000e1100000000m
         e = 0xf;
-        m = 0x7;
+        m = 0x6;
         /* smaller than denormal f8 + eps */
     } else if (e_f16 < f16_bias - f8_bias - 3) {  // < 5
         e = 0x0;
