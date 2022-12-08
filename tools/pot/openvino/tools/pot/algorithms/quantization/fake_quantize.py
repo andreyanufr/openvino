@@ -249,7 +249,7 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
     max_vals = {"hf8_ext": 28, "hf8_libxsmm": 448, "bf8": 57344}
 
     print(fq.name, ' th value: ', th)
-    if th > 15.0:
+    if th > max_vals['hf8_ext']:
         fq.destination_type = 'hf8_libxsmm'  # 'bf8'
     else:
         fq.destination_type = 'hf8_ext'  # 'hf8_libxsmm' #'hf8_ext'
@@ -259,18 +259,13 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
     fq.apply_scale = True
 
     if 'fq_input' in fq.name:
-        sz = 1
-        if hasattr(scale, 'shape'):
-            for s in scale.shape:
-                sz *= s
-        if sz > 1:
-            offset = min_level
-            offset = round_scales(offset)
-            denum = np.abs(max_level - offset)+ np.finfo(float).eps
-            scale = max_vals[fq.destination_type] / denum
-            print("Per channel scale: ", fq.name)
-            print("Scale: ", scale.flatten())
-            print("Offset: ", offset.flatten())
+        offset = min_level
+        offset = round_scales(offset)
+        denum = np.abs(max_level - offset)+ np.finfo(float).eps
+        scale = max_vals[fq.destination_type] / denum
+        print("Per channel scale: ", fq.name)
+        print("Scale: ", scale.flatten())
+        print("Offset: ", offset.flatten())
     print(fq.name, ' th value: ', th, fq.destination_type, fq.apply_scale, scale.shape)
 
     def _update_node_val(port_idx, value):
