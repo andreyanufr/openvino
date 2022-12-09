@@ -255,7 +255,7 @@ void convertfp16_hf8_ext(const T* arg, T* out, size_t count, int exp_bits = 5, i
         short sign_h = (h.u & 0x8000);           /// 1 00000 0000000000
         short mantissa_h = (h.u & 0x03FF);       /// 0 00000 1111111111
         ///(h.u && 0111111111111111) < 0 10010 1110000000 (19326) - ????
-        unsigned short can_round = ((h.u & 0x7FFF) < 0x4B80) ? 1 : 0;
+        unsigned short can_round = ((h.u & 0x7FFF) < 0b100111110000000) ? 1 : 0;
         unsigned short is_normal = 1;
 
         is_normal = (((h.u & 0x7C00) <= 0x7800) && ((h.u & 0x7C00) >= 0x0400)) ? 1 : 0;
