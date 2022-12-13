@@ -260,7 +260,7 @@ void convertfp16_hf8_ext(const T* arg, T* out, size_t count, int exp_bits = 5, i
         short sign_h = (h.u & 0x8000);           /// 1 00000 0000000000
         short mantissa_h = (h.u & 0x03FF);       /// 0 00000 1111111111
         ///(h.u && 0111111111111111) < 0 10010 1110000000 (19326) - ????
-        unsigned short can_round = ((h.u & 0x7FFF) < 0x4B80) ? 1 : 0;
+        unsigned short can_round = ((h.u & 0x7FFF) < 0b100111110000000) ? 1 : 0;
         unsigned short is_normal = 1;
 
         is_normal = (((h.u & 0x7C00) <= 0x7800) && ((h.u & 0x7C00) >= 0x0400)) ? 1 : 0;
@@ -500,8 +500,7 @@ void apply_scale(T* data, int sz, S scale) {
 }
 
 template <typename T>
-void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale,
-                             const ov::Tensor& offset, bool invert = false) {
+void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale, const ov::Tensor& offset, bool invert = false) {
     auto dataShape = data.get_shape();
     auto scaleShape = scale.get_shape();
     auto scaleSize = scale.get_size();
@@ -516,11 +515,11 @@ void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale,
         float o = offsetPtr[0];
         if (invert) {
             for (size_t j = 0; j < dataSize; j++) {
-                dataPtr[j] = dataPtr[j] / s + o;
+                dataPtr[j] = (dataPtr[j] + o) / s;
             }
         } else {
             for (size_t j = 0; j < dataSize; j++) {
-                dataPtr[j] = (dataPtr[j] - o) * s;
+                dataPtr[j] = dataPtr[j] * s - o;  // o = quntized(o * s)
             }
         }
         return;
@@ -538,11 +537,11 @@ void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale,
                 float o = offsetPtr[i];
                 if (invert) {
                     for (size_t j = 0; j < step; j++) {
-                        dataPtr[j] = dataPtr[j] / s + o;
+                        dataPtr[j] = (dataPtr[j] + o) / s;
                     }
                 } else {
                     for (size_t j = 0; j < step; j++) {
-                        dataPtr[j] = (dataPtr[j] - o) * s;
+                        dataPtr[j] = dataPtr[j] * s - o;
                     }
                 }
                 dataPtr += step;
@@ -580,6 +579,10 @@ void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale,
 bool op::v1::ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVector& inputs) const {
     ov::TensorVector fp16;
 
+    OPENVINO_ASSERT(
+        outputs[0].get_element_type() == ov::element::f32 && inputs[0].get_element_type() == ov::element::f32,
+        "Wrong input or output type for ConvertFP8::evaluate");
+
     outputs[0].set_shape(inputs[0].get_shape());
     fp16.emplace_back(ov::Tensor(ov::element::f16, inputs[0].get_shape()));
     int element_count = inputs[0].get_size();
@@ -598,10 +601,7 @@ bool op::v1::ConvertFP8::evaluate(ov::TensorVector& outputs, const ov::TensorVec
     }
 
     if (m_apply_scale) {
-        if (outputs[0].get_element_type() == ov::element::f32)
-            convert_fp8::apply_per_channel_scale<float>(outputs[0], inputs[1], inputs[2], true);
-        else
-            convert_fp8::apply_per_channel_scale<ov::float16>(outputs[0], inputs[1], inputs[2], true);
+        convert_fp8::apply_per_channel_scale<float>(outputs[0], inputs[1], inputs[2], true);
     }
 
     return true;

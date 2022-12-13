@@ -249,23 +249,43 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
     max_vals = {"hf8_ext": 28, "hf8_libxsmm": 448, "bf8": 57344}
 
     print(fq.name, ' th value: ', th)
-    if th > max_vals['hf8_ext']:
+    if th > 15.0:
         fq.destination_type = 'hf8_libxsmm'  # 'bf8'
     else:
         fq.destination_type = 'hf8_ext'  # 'hf8_libxsmm' #'hf8_ext'
+    fq.destination_type = 'hf8_ext'
     scale = max_level
     offset = np.zeros_like(scale)
-    scale = max_vals[fq.destination_type] / np.maximum(max_level, np.abs(min_level) + np.finfo(float).eps)
+
+    if 'weight' in fq.name:
+        scale = max_vals[fq.destination_type] / np.maximum(max_level, np.abs(min_level) + np.finfo(float).eps)
+    else:
+        # sz = np.product(scale.shape)
+        # if sz > 1:
+        #     ## acc == 53
+        #     # offset = min_level
+        #     # offset = round_scales(offset)
+        #     # denum = np.maximum(min_level, np.abs(max_level - min_level)) + np.finfo(float).eps
+        #     # scale[:] = 1.0 #= 0.5 * max_vals[fq.destination_type] / denum
+        #     offset = min_level
+        #     denum = np.maximum(np.abs(min_level), np.abs(max_level - min_level)) + np.finfo(float).eps
+        #     #denum = np.abs(max_level - min_level) + np.finfo(float).eps
+        #     scale = max_vals[fq.destination_type] / denum
+        #     offset = scale * offset
+        #     offset = round_scales(offset)
+        # else:
+        #     scale = 0.5 * max_vals[fq.destination_type] / np.maximum(max_level, np.abs(min_level) + np.finfo(float).eps)
+        offset = min_level
+        denum = np.maximum(np.abs(min_level), np.abs(max_level - min_level)) + np.finfo(float).eps
+        scale = max_vals[fq.destination_type] / denum
+        offset = scale * offset
+        offset = round_scales(offset)
+
+        denum = np.maximum(np.abs(offset) / scale, np.abs(max_level - offset / scale)) + np.finfo(float).eps
+        scale = max_vals[fq.destination_type] / denum
+
     fq.apply_scale = True
 
-    if 'fq_input' in fq.name:
-        offset = min_level
-        offset = round_scales(offset)
-        denum = np.abs(max_level - offset)+ np.finfo(float).eps
-        scale = max_vals[fq.destination_type] / denum
-        print("Per channel scale: ", fq.name)
-        print("Scale: ", scale.flatten())
-        print("Offset: ", offset.flatten())
     print(fq.name, ' th value: ', th, fq.destination_type, fq.apply_scale, scale.shape)
 
     def _update_node_val(port_idx, value):
@@ -419,6 +439,7 @@ def symmetric_range(node, fq, weights_stats,
         max_level = weights_stats[node_output.fullname]['max']
         max_level = fix_zero_filters_symmetric(max_level)
         min_level = -max_level
+        # raise Exception('Call def symmetric_range')
         # min_level = weights_stats[node_output.fullname]['min']
         # min_level = fix_zero_filters_symmetric(min_level)
     elif name in batch_inputs_stats:
@@ -450,18 +471,19 @@ def asymmetric_range(node, fq, weights_stats,
             'WARNING: Fake quantize node {} is missed'.format(fq.fullname))
 
     max_level, min_level = fix_zero_filters_asymmetric(max_level, min_level)
-    min_level = np.where(min_level < 0.0, min_level, 0.0)
-    max_level = np.where(max_level > 0.0, max_level, 0.0)
-    if unify_zp:
-        if name in batch_inputs_stats:
-            raise Exception(
-                'WARING: unify zero point of fake quantize node {} not supported'.format(fq.fullname)
-            )
-        min_level, max_level = tune_range_unify_zp(
-            min_level, max_level, fake_quantize_config[fq.fullname]['bits'])
-    else:
-        min_level, max_level = tune_range(
-            min_level, max_level, fake_quantize_config[fq.fullname]['bits'])
+    if 'fq_weight' in fq.name:
+        min_level = np.where(min_level < 0.0, min_level, 0.0)
+        max_level = np.where(max_level > 0.0, max_level, 0.0)
+        if unify_zp:
+            if name in batch_inputs_stats:
+                raise Exception(
+                    'WARING: unify zero point of fake quantize node {} not supported'.format(fq.fullname)
+                )
+            min_level, max_level = tune_range_unify_zp(
+                min_level, max_level, fake_quantize_config[fq.fullname]['bits'])
+        else:
+            min_level, max_level = tune_range(
+                min_level, max_level, fake_quantize_config[fq.fullname]['bits'])
 
     min_level, max_level = broadcast_fq_values(fq, node, min_level, max_level, fake_quantize_config)
     return min_level, max_level
@@ -554,15 +576,8 @@ def broadcast_fq_values(fq, node, min_level, max_level, fq_config):
         if fq_config[fq.fullname]['granularity'] == 'perchannel':
             bounds_shape[1] = input_shape[1]
 
-    try:
-        min_level = min_level.reshape(bounds_shape)
-    except:
-        min_level = min_level.mean().reshape(bounds_shape)
-
-    try:
-        max_level = max_level.reshape(bounds_shape)
-    except:
-        max_level = max_level.mean().reshape(bounds_shape)
+    min_level = min_level.reshape(bounds_shape)
+    max_level = max_level.reshape(bounds_shape)
 
     return min_level, max_level
 
@@ -578,7 +593,7 @@ def set_rescaling_factors(config, model, scaling_factor=2.0):
     """
 
     fqs_to_rescale = []
-    #saturation_fix = config.get('saturation_fix', 'no')
+    # saturation_fix = config.get('saturation_fix', 'no')
     saturation_fix = 'no'
 
     if config['target_device'] not in ['CPU', 'ANY'] \

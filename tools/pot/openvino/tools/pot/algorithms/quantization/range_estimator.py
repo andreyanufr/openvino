@@ -11,8 +11,8 @@ DEFAULT_ACTIVATIONS_RANGE_ESTIMATOR_CONFIG = {
             'max': {'aggregator': 'max', 'type': 'abs_max'}
         },
         'asymmetric': {
-            'min': {'aggregator': 'mean', 'type': 'mean'},
-            'max': {'aggregator': 'mean', 'type': 'arg_max'}
+            'min': {'aggregator': 'median', 'type': 'mean'},
+            'max': {'aggregator': 'max', 'type': 'abs_max'}
         }
     },
     'pertensor': {
