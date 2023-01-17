@@ -506,8 +506,10 @@ void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale, bool inv
     if (scaleSize == 1) {  // per tensor scale, probably for activation
         auto dataSize = data.get_size();
         float s = scalePtr[0];
-        if (invert)
-            s = 1.0 / s;
+        if (invert) {
+            if (fabs(s) > 0.0)
+                s = 1.0 / s;
+        }
 
         for (size_t j = 0; j < dataSize; j++) {
             dataPtr[j] *= s;
@@ -525,7 +527,8 @@ void apply_per_channel_scale(ov::Tensor& data, const ov::Tensor& scale, bool inv
             for (size_t i = 0; i < scaleSize; i++) {
                 float s = scalePtr[i];
                 if (invert)
-                    s = 1.0 / s;
+                    if (fabs(s) > 0.0)
+                        s = 1.0 / s;
                 for (size_t j = 0; j < step; j++) {
                     dataPtr[j] *= s;
                 }

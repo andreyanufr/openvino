@@ -100,6 +100,7 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
     scale = max_vals[fq.destination_type] / np.maximum(max_level, np.abs(min_level) + np.finfo(float).eps)
     if not is_weights:
         scale = 0.5 * scale
+        scale[np.where((max_level < np.finfo(float).eps) & (np.abs(min_level) < np.finfo(float).eps))] = 0.0
     fq.apply_scale = True
 
     print(fq.name, ' th value: ', fq.destination_type, fq.apply_scale, scale.shape)
