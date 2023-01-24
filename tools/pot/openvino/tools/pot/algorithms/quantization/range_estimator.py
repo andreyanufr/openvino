@@ -7,21 +7,25 @@ from copy import deepcopy
 DEFAULT_ACTIVATIONS_RANGE_ESTIMATOR_CONFIG = {
     'perchannel': {
         'symmetric': {
-            'min': {'aggregator': 'median', 'type': 'mean'},
-            'max': {'aggregator': 'max', 'type': 'abs_max'}
+            'mean': {'aggregator': 'median', 'type': 'mean'},
+            'min': {'aggregator': 'max', 'type': 'min'},
+            'max': {'aggregator': 'max', 'type': 'max'}
         },
         'asymmetric': {
-            'min': {'aggregator': 'median', 'type': 'mean'},
-            'max': {'aggregator': 'max', 'type': 'abs_max'}
+            'mean': {'aggregator': 'median', 'type': 'mean'},
+            'min': {'aggregator': 'min', 'type': 'min'},
+            'max': {'aggregator': 'max', 'type': 'max'}
         }
     },
     'pertensor': {
         'symmetric': {
-            'min': {'aggregator': 'median', 'type': 'mean'},
+            'mean': {'aggregator': 'median', 'type': 'mean'},
+            'min': {'aggregator': 'min', 'type': 'min'},
             'max': {'aggregator': 'max', 'type': 'max'}
         },
         'asymmetric': {
-            'min': {'aggregator': 'median', 'type': 'mean'},
+            'mean': {'aggregator': 'median', 'type': 'mean'},
+            'min': {'aggregator': 'min', 'type': 'min'},
             'max': {'aggregator': 'max', 'type': 'max'}
         }
     }}
