@@ -36,6 +36,7 @@ class SmoothQuantize(Algorithm):
         seed = self._config.get('seed', 0)
         self._sampler = create_sampler(
             engine, stat_subset_size, shuffle_data, seed, stat_batch_size)
+        self.alpha = 0.5
 
     @property
     def change_original_model(self):
@@ -56,10 +57,81 @@ class SmoothQuantize(Algorithm):
             for stats_name, stats_values in stats_list.items():
                 stats[node_name][stats_name] = agf.median(stats_values)
 
-        for node_pair_data in mat_mul_inputs:
-            pass
+        for node_mat_mul_data in mat_mul_inputs:
+            node_0, node_1, node_mat_mul = node_mat_mul_data
+            self.smooth_quantize(node_0, node_1, node_mat_mul, stats)
 
         return model
+
+    def smooth_quantize(self, node_0, node_1, node_mat_mul, stats):
+        # node_0 * node_1 = node_mat_mul_out
+        name_0 = node_0.fullname
+        name_1 = node_1.fullname
+
+        is_bmm = True
+
+        if name_0 in stats:
+            stats_0 = stats[name_0]['channel_range_max']
+        else:
+            stats_0 = self.get_weights(name_0)
+            is_bmm = False
+
+        if name_1 in stats:
+            stats_1 = stats[name_1]['channel_range_max']
+        else:
+            stats_1 = self.get_weights(name_1)
+            is_bmm = False
+
+        if is_bmm:
+            self.smooth_quantize_activation_activation(node_0, node_1, node_mat_mul, stats_0, stats_1)
+        else:
+            self.smooth_quantize_activation_linear(node_0, node_1, node_mat_mul, stats_0, stats_1)
+
+    def smooth_quantize_activation_activation(self, node_0, node_1, node_mat_mul, stats_0, stats_1):
+        # node_0 * node_1 = node_mat_mul_out
+        pass
+
+    def smooth_quantize_activation_linear(self, node_a, node_l, node_mat_mul, stats_a, stats_l, ratio=0.5):
+        # node_0 * node_1 = node_mat_mul_out, [M, K] * [K, N] = [M, N]
+
+        # check it later
+        # axis = ''
+        # i_a_max = np.argmax(stats_a, axis=axis)
+        # c_a_max = stats_a[i_a_max]
+        #
+        # i_a_min = np.argmax(stats_a, axis=axis)
+        # c_a_min = stats_a[i_a_min]
+        #
+        # if c_a_min / c_a_max > ratio:
+        #     # no reason to make smoothing
+        #     return
+
+        scales = (np.power(stats_a, self.alpha) / (np.power(stats_l, 1 - self.alpha) + np.finfo(float).eps))
+        scales = np.clip(scales, a_min=1e-5, a_max=None)
+
+        weights = self.get_weights(node_l)
+        weights = weights * scales
+
+        nu.set_node_value(node_l, weights)
+
+        # TODO: need to insert Multiply node between node_a and node_mat_mul with scale**(-1)
+
+        pass
+
+
+
+    @staticmethod
+    def get_weights(node):
+        # get consumer convolution weights
+        w_out = nu.get_weights_for_node(node)
+        if w_out.type == 'FakeQuantize':
+            w_out = nu.get_node_input(w_out, 0)
+        if w_out.type != 'Const':
+            w_out = None
+            logger.debug('{} has no const weights. '
+                         'Do not align activations for this node pair.'.format(node.fullname))
+
+        return w_out
 
     def register_statistics(self, model, stats_collector):
         model = deepcopy(model)
@@ -90,7 +162,7 @@ class SmoothQuantize(Algorithm):
             node_0 = nu.get_node_input(node_out, 0)
             node_1 = nu.get_node_input(node_out, 1) # Const or other activation
 
-            node_pairs_list.append((node_0, node_1))
+            node_pairs_list.append((node_0, node_1, node_out))
             # try smooth quantize inside this sequence
             logger.debug('{} -> {}'.format(node_0.fullname, node_1.fullname))
 
