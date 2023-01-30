@@ -15,6 +15,8 @@ from ....statistics.functions import activations as asf
 from ....statistics.functions import aggregation as agf
 from ....utils.logger import get_logger
 
+from openvino.tools.mo.ops.elementwise import Mul
+
 
 logger = get_logger(__name__)
 
@@ -59,11 +61,11 @@ class SmoothQuantize(Algorithm):
 
         for node_mat_mul_data in mat_mul_inputs:
             node_0, node_1, node_mat_mul = node_mat_mul_data
-            self.smooth_quantize(node_0, node_1, node_mat_mul, stats)
+            self.smooth_quantize(model, node_0, node_1, node_mat_mul, stats)
 
         return model
 
-    def smooth_quantize(self, node_0, node_1, node_mat_mul, stats):
+    def smooth_quantize(self, model, node_0, node_1, node_mat_mul, stats):
         # node_0 * node_1 = node_mat_mul_out
         name_0 = node_0.fullname
         name_1 = node_1.fullname
@@ -72,7 +74,10 @@ class SmoothQuantize(Algorithm):
 
         if name_0 in stats:
             stats_0 = stats[name_0]['channel_range_max']
+            assert len(stats_0.shape) > 2
         else:
+            # TODO: check if input_node[0] can be constant
+            raise Exception("Input node 0 is Const")
             stats_0 = self.get_weights(name_0)
             is_bmm = False
 
@@ -85,13 +90,19 @@ class SmoothQuantize(Algorithm):
         if is_bmm:
             self.smooth_quantize_activation_activation(node_0, node_1, node_mat_mul, stats_0, stats_1)
         else:
+            # TODO: check it
+            if node_mat_mul['transpose_b']:
+                stats_1 = np.transpose(stats_1)
+            stats_1 = np.abs(stats_1)
+            stats_1 = np.max(stats_1, axis=0) # abs_max per column
             self.smooth_quantize_activation_linear(node_0, node_1, node_mat_mul, stats_0, stats_1)
 
     def smooth_quantize_activation_activation(self, node_0, node_1, node_mat_mul, stats_0, stats_1):
         # node_0 * node_1 = node_mat_mul_out
+        # TODO: theoretical place for improvement
         pass
 
-    def smooth_quantize_activation_linear(self, node_a, node_l, node_mat_mul, stats_a, stats_l, ratio=0.5):
+    def smooth_quantize_activation_linear(self, model, node_a, node_l, node_mat_mul, stats_a, stats_l, ratio=0.5):
         # node_0 * node_1 = node_mat_mul_out, [M, K] * [K, N] = [M, N]
 
         # check it later
@@ -113,6 +124,16 @@ class SmoothQuantize(Algorithm):
         weights = weights * scales
 
         nu.set_node_value(node_l, weights)
+
+        scales = np.broadcast_to(scales, stats_a)
+        scales = scales**(-1)
+        multiply_node = Mul(model,
+                           {'value': scales,
+                          'need_shape_inference': True}).create_node()
+        node_a.out_port(0).disconnect()
+        node_a.out_port(0).get_connection().set_destination(multiply_node.in_port(0))
+
+        multiply_node.out_port(0).connect(node_mat_mul.in_port(0))
 
         # TODO: need to insert Multiply node between node_a and node_mat_mul with scale**(-1)
 
