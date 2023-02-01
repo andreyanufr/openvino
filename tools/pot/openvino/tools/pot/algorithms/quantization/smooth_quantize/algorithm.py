@@ -16,7 +16,8 @@ from ....statistics.functions import aggregation as agf
 from ....utils.logger import get_logger
 
 from openvino.tools.mo.ops.elementwise import Mul
-
+from openvino.tools.mo.ops.const import Const
+from openvino.tools.mo.front.common.partial_infer.utils import mo_array
 
 logger = get_logger(__name__)
 
@@ -74,28 +75,31 @@ class SmoothQuantize(Algorithm):
 
         if name_0 in stats:
             stats_0 = stats[name_0]['channel_range_max']
-            assert len(stats_0.shape) > 2
+            stats_0 = np.max(stats_0, axis=0)
+            # assert len(stats_0.shape) > 2
         else:
             # TODO: check if input_node[0] can be constant
             raise Exception("Input node 0 is Const")
-            stats_0 = self.get_weights(name_0)
+            stats_0 = self.get_weights(node_0)
             is_bmm = False
 
         if name_1 in stats:
             stats_1 = stats[name_1]['channel_range_max']
         else:
-            stats_1 = self.get_weights(name_1)
+            if node_1.type != 'Const':
+                return
+            stats_1 = deepcopy(nu.get_node_value(node_1))
+            # TODO: check it
+            # if node_mat_mul['transpose_b']:
+            #     stats_1 = np.transpose(stats_1) # copy
+            stats_1 = np.abs(stats_1)
+            stats_1 = np.max(stats_1, axis=0)  # abs_max per column [M, K] * [K, N]
             is_bmm = False
 
         if is_bmm:
             self.smooth_quantize_activation_activation(node_0, node_1, node_mat_mul, stats_0, stats_1)
         else:
-            # TODO: check it
-            if node_mat_mul['transpose_b']:
-                stats_1 = np.transpose(stats_1)
-            stats_1 = np.abs(stats_1)
-            stats_1 = np.max(stats_1, axis=0) # abs_max per column
-            self.smooth_quantize_activation_linear(node_0, node_1, node_mat_mul, stats_0, stats_1)
+            self.smooth_quantize_activation_linear(model, node_0, node_1, node_mat_mul, stats_0, stats_1)
 
     def smooth_quantize_activation_activation(self, node_0, node_1, node_mat_mul, stats_0, stats_1):
         # node_0 * node_1 = node_mat_mul_out
@@ -120,26 +124,61 @@ class SmoothQuantize(Algorithm):
         scales = (np.power(stats_a, self.alpha) / (np.power(stats_l, 1 - self.alpha) + np.finfo(float).eps))
         scales = np.clip(scales, a_min=1e-5, a_max=None)
 
-        weights = self.get_weights(node_l)
-        weights = weights * scales
+        w_scales = np.expand_dims(scales, axis=0)
+        weights = nu.get_node_value(node_l)  # self.get_weights(node_l)
+        weights = weights * w_scales
 
         nu.set_node_value(node_l, weights)
 
-        scales = np.broadcast_to(scales, stats_a)
-        scales = scales**(-1)
-        multiply_node = Mul(model,
-                           {'value': scales,
-                          'need_shape_inference': True}).create_node()
-        node_a.out_port(0).disconnect()
-        node_a.out_port(0).get_connection().set_destination(multiply_node.in_port(0))
+        # scales = np.broadcast_to(scales, stats_a)
+        scales = scales ** (-1)
 
-        multiply_node.out_port(0).connect(node_mat_mul.in_port(0))
+        self.insert_multiply_node(node_a, node_mat_mul, scales)
 
         # TODO: need to insert Multiply node between node_a and node_mat_mul with scale**(-1)
 
         pass
 
+    @staticmethod
+    def insert_multiply_node(node_in, node_out, scales):
+        # assume node_out.in_port(0) == node_in
+        port_num = 0
+        for i in range(len(node_in.out_ports())):
+            destination_ports = []
+            for dest_port in node_in.out_port(i).get_destinations():
+                if node_out.in_port(0) is dest_port:
+                    port_num = i
+                destination_ports.append(dest_port)
+            if node_out.in_port(0) in destination_ports:
+                port_num = i
+                break
 
+        assert port_num == 0
+        if port_num == -1:
+            print("Something wrong in connection between {} and {}".format(node_in.name, node_out.name))
+            return
+
+        destination_ports = []
+        for dest_port in node_in.out_port(0).get_destinations():
+            destination_ports.append(dest_port)
+
+        # ##node_out.graph.remove_edge(node_out.in_port(0).id, node_in.out_port(0).id)
+
+        mul_node = Mul(node_out.graph, {'name': node_out.id + '/sq_mul', 'need_shape_inference': True}).create_node()
+        const_node = Const(node_out.graph, {'name': node_out.id + '/sq', 'value': mo_array(scales)}).create_node()
+        const_node.out_port(0).connect(mul_node.in_port(1))
+
+        mul_node.out_port(0).connect(node_out.in_port(0))
+        mul_node.out_port(0).get_connection().set_destination(node_out.in_port(0))
+
+        node_in.out_port(0).disconnect()
+        node_in.out_port(0).connect(mul_node.in_port(0))
+        node_in.out_port(0).get_connection().set_destination(mul_node.in_port(0))
+
+        for dest_port in destination_ports:
+            if node_out.in_port(0) == dest_port:
+                continue
+            node_in.out_port(0).connect(dest_port)
 
     @staticmethod
     def get_weights(node):
@@ -161,7 +200,7 @@ class SmoothQuantize(Algorithm):
         self._stats_collector = stats_collector
 
     def get_activations_statistics_layout(self, model):
-        node_pairs_list = self.find_node_pairs(model)
+        node_pairs_list = self.find_mat_muls(model)
 
         stats_layout = {}
         for node_pair_data in node_pairs_list:
@@ -170,8 +209,8 @@ class SmoothQuantize(Algorithm):
             if nu.get_bias_for_node(node_in):
                 node_in = nu.get_node_output(node_in, 0)[0]
             name = node_in.fullname
-            stats_layout[name] = {'channel_range_min': TensorStatistic(asf.quantile_per_channel, q=1e-4),
-                                  'channel_range_max': TensorStatistic(asf.quantile_per_channel, q=1-1e-4)}
+            stats_layout[name] = {'channel_range_min': TensorStatistic(asf.abs_max_per_channel_transformer),
+                                  'channel_range_max': TensorStatistic(asf.abs_max_per_channel_transformer)}
 
         logger.debug('Collecting output statistics for nodes {}'.format(stats_layout.keys()))
         return stats_layout
@@ -181,7 +220,7 @@ class SmoothQuantize(Algorithm):
         nodes = sorted([(n.fullname, n) for n in mu.get_nodes_by_type(model, ['MatMul'])])
         for _, node_out in nodes:
             node_0 = nu.get_node_input(node_out, 0)
-            node_1 = nu.get_node_input(node_out, 1) # Const or other activation
+            node_1 = nu.get_node_input(node_out, 1)  # Const or other activation
 
             node_pairs_list.append((node_0, node_1, node_out))
             # try smooth quantize inside this sequence
