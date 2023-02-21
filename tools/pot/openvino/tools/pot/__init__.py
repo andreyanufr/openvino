@@ -9,6 +9,7 @@ from .algorithms.quantization.accuracy_aware_common.mixed_precision import (
 )
 from .algorithms.quantization.fast_bias_correction.algorithm import FastBiasCorrection
 from .algorithms.quantization.bias_correction.algorithm import BiasCorrection
+from .algorithms.quantization.smooth_quantize.algorithm import SmoothQuantize
 from .algorithms.quantization.channel_alignment.algorithm import (
     ActivationChannelAlignment,
 )
@@ -60,6 +61,7 @@ QUANTIZATION_ALGORITHMS = [
     'ParamsGridSearchAlgorithm',
     'OverflowCorrection',
     'RangeSupervision',
+    'SmoothQuantize'
 ]
 
 SPARSITY_ALGORITHMS = ['WeightSparsity',
