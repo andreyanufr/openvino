@@ -141,3 +141,10 @@ def get_min_per_channel(acts, **_):
 @get_act_stats_fn_per_channel.register('abs_max')
 def get_abs_max_per_channel(acts, **_):
     return np.atleast_1d(acts)
+
+
+@compute_act_stats_fn_per_channel.register('abs_max_transformer')
+def abs_max_per_channel_transformer(acts):
+    res = np.abs(acts)
+    #res = np.max(res, axis=0)
+    return res

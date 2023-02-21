@@ -42,11 +42,12 @@ class SmoothQuantize(Algorithm):
         seed = self._config.get('seed', 0)
         self._sampler = create_sampler(
             engine, stat_subset_size, shuffle_data, seed, stat_batch_size)
-        self.alpha = 0.5
+        self.alpha = self._config.get('alpha', 0.5)
         self.history = {}
 
         self.layer_number = self._config.get('layer_number', -1)
         print("self.layer_number ", self.layer_number)
+        print("self.alpha ", self.alpha)
 
     @property
     def change_original_model(self):
@@ -65,25 +66,20 @@ class SmoothQuantize(Algorithm):
         for node_name, stats_list in activations_statistics.items():
             stats[node_name] = dict()
             for stats_name, stats_values in stats_list.items():
-                stats[node_name][stats_name] = agf.median(stats_values)
+                if 'Transpose_' in node_name or 'Softmax_' in node_name or '3033' in node_name:
+                    continue
+                stats[node_name][stats_name] = agf.max_per_channel(stats_values)
 
         print("Process {} MatMul nodes".format(len(mat_mul_inputs)))
 
-        if 1:
-            mat_mul_inputs_groupped = self.group_nodes_by_source(mat_mul_inputs)
-            num_layer = 0
-            for k, val in mat_mul_inputs_groupped.items():
-                if 'Transpose_' in k.fullname or 'Softmax_' in k.fullname:
-                    continue
-                if num_layer == self.layer_number or True:
-                    self.smooth_quantize_groupped(k, val, stats)
-                num_layer += 1
-            return model
-
-        for node_mat_mul_data in mat_mul_inputs:
-            node_0, node_1, node_mat_mul = node_mat_mul_data
-            self.smooth_quantize(node_0, node_1, node_mat_mul, stats)
-
+        mat_mul_inputs_groupped = self.group_nodes_by_source(mat_mul_inputs)
+        num_layer = 0
+        for k, val in mat_mul_inputs_groupped.items():
+            if 'Transpose_' in k.fullname or 'Softmax_' in k.fullname or '3033' in k.fullname:
+                continue
+            if num_layer == self.layer_number or True:
+                self.smooth_quantize_groupped(k, val, stats)
+            num_layer += 1
         return model
 
     @staticmethod
@@ -98,43 +94,6 @@ class SmoothQuantize(Algorithm):
                 res[node_0] = [(node_1, node_mat_mul)]
 
         return res
-
-    def smooth_quantize(self, node_0, node_1, node_mat_mul, stats):
-        # node_0 * node_1 = node_mat_mul_out
-        name_0 = node_0.fullname
-        name_1 = node_1.fullname
-
-        is_bmm = True
-
-        if name_0 in stats:
-            stats_0 = stats[name_0]['channel_range_max']
-            stats_0 = np.max(stats_0, axis=0)
-            # assert len(stats_0.shape) > 2
-        else:
-            # TODO: check if input_node[0] can be constant
-            raise Exception("Input node 0 is Const")
-            stats_0 = self.get_weights(node_0)
-            is_bmm = False
-
-        if name_1 in stats:
-            stats_1 = stats[name_1]['channel_range_max']
-        else:
-            if node_1.type != 'Const':
-                return
-            stats_1 = deepcopy(nu.get_node_value(node_1))
-            # TODO: check it
-            # if node_mat_mul['transpose_b']:
-            #     stats_1 = np.transpose(stats_1) # copy
-            if not node_mat_mul['transpose_b']:
-                raise Exception("Bad transpose")
-            stats_1 = np.abs(stats_1)
-            stats_1 = np.max(stats_1, axis=0)  # abs_max per column [M, K] * [K, N]
-            is_bmm = False
-
-        if is_bmm:
-            self.smooth_quantize_activation_activation(node_0, node_1, node_mat_mul, stats_0, stats_1)
-        else:
-            self.smooth_quantize_activation_linear(node_0, node_1, node_mat_mul, stats_0, stats_1)
 
     def smooth_quantize_groupped(self, node_in, dst_nodes, stats):
         # node_0 * node_1 = node_mat_mul_out
@@ -156,14 +115,16 @@ class SmoothQuantize(Algorithm):
             print(f"Node {name_in} contains output for BMM")
             return
 
+        dump_data = False
         best_scale = None
         best_ratio = 0.0
         stats_activation = stats[name_in]['channel_range_max']
-        np.save(os.path.join('stats', name_in.replace('/', '_') + '.npy'), stats_activation)
+        if dump_data: np.save(os.path.join('stats', name_in.replace('/', '_') + '.npy'), stats_activation)
         stats_activation = np.max(stats_activation, axis=0)
-        np.save(os.path.join('stats', name_in.replace('/', '_') + '_max.npy'), stats_activation)
+        if dump_data: np.save(os.path.join('stats', name_in.replace('/', '_') + '_max.npy'), stats_activation)
 
-        print(f"Node {name_in} smooth quantize")
+        print(f"Node {name_in} smooth quantize. Shape: ", stats_activation.shape)
+
         for dst_node in dst_nodes:
             node_in_1, node_mat_mul = dst_node
 
@@ -173,26 +134,27 @@ class SmoothQuantize(Algorithm):
             stats_w = deepcopy(nu.get_node_value(node_in_1))
 
             name_in_1 = node_in_1.fullname
-            np.save(os.path.join('stats', name_in.replace('/', '_') + "__" + name_in_1.replace('/', '_') + '_w.npy'),
-                    stats_w)
+            if dump_data: np.save(
+                os.path.join('stats', name_in.replace('/', '_') + "__" + name_in_1.replace('/', '_') + '_w.npy'),
+                stats_w)
 
             if not node_mat_mul['transpose_b']:
                 raise Exception("Bad transpose")
             stats_w = np.abs(stats_w)
             stats_w = np.max(stats_w, axis=0)  # abs_max per column [M, K] * [K, N]
 
-            np.save(
+            if dump_data: np.save(
                 os.path.join('stats', name_in.replace('/', '_') + "__" + name_in_1.replace('/', '_') + '_stats_w.npy'),
                 stats_w)
 
             scales = (np.power(stats_activation, self.alpha) / (
                         np.power(stats_w, 1 - self.alpha) + np.finfo(float).eps))
-            # a_min = np.quantile(scales, 0.4)
-            a_min = np.quantile(scales, 0.8)
+            a_min = np.quantile(scales, 0.1)
+            # a_min = np.quantile(scales, 0.8)
             # a_min = 1e-5
             scales = np.clip(scales, a_min=a_min, a_max=None)
 
-            np.save(
+            if dump_data: np.save(
                 os.path.join('stats', name_in.replace('/', '_') + "__" + name_in_1.replace('/', '_') + '_scale.npy'),
                 scales)
 
@@ -217,9 +179,9 @@ class SmoothQuantize(Algorithm):
             non_zero_activations = stats_activation_s
         ratio_after = non_zero_activations.min() / non_zero_activations.max()
 
-        if ratio_after <= ratio_before:
-            print("Skip activation statistics smoothing for ", node_in.id)
-            return
+        # if ratio_after <= ratio_before:
+        #     print("Skip activation statistics smoothing for ", node_in.id)
+        #     return
 
         w_scales = np.expand_dims(best_scale, axis=0)
 
@@ -244,11 +206,11 @@ class SmoothQuantize(Algorithm):
             nu.set_node_value(node_in_1, weights)
 
             name_in_1 = node_in_1.fullname
-            np.save(
+            if dump_data: np.save(
                 os.path.join('stats', name_in.replace('/', '_') + "__" + name_in_1.replace('/', '_') + '_w_scaled.npy'),
                 weights)
 
-        np.save(os.path.join('stats', name_in.replace('/', '_') + '_best_scale.npy'), best_scale)
+        if dump_data: np.save(os.path.join('stats', name_in.replace('/', '_') + '_best_scale.npy'), best_scale)
 
         scales = best_scale ** (-1)
         idxs = np.where(stats_activation > 0.0)
@@ -305,7 +267,7 @@ class SmoothQuantize(Algorithm):
     def smooth_quantize_activation_activation(self, node_0, node_1, node_mat_mul, stats_0, stats_1):
         # node_0 * node_1 = node_mat_mul_out
         # TODO: theoretical place for improvement
-        print("MatMul {} is BMM.".format(node_mat_mul.name))
+        print("MatMul {} is BMM.".fromat(node_mat_mul.name))
         return 0
 
     def smooth_quantize_activation_linear(self, node_a, node_l, node_mat_mul, stats_a, stats_l, ratio=0.5):
