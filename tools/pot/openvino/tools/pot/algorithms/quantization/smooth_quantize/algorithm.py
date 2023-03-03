@@ -21,6 +21,8 @@ from ....utils.logger import get_logger
 from openvino.tools.mo.ops.elementwise import Mul
 from openvino.tools.mo.ops.const import Const
 from openvino.tools.mo.front.common.partial_infer.utils import mo_array
+from openvino.runtime import opset9
+import openvino.runtime as ov
 
 logger = get_logger(__name__)
 
@@ -66,8 +68,8 @@ class SmoothQuantize(Algorithm):
         for node_name, stats_list in activations_statistics.items():
             stats[node_name] = dict()
             for stats_name, stats_values in stats_list.items():
-                if 'Transpose_' in node_name or 'Softmax_' in node_name or '3033' in node_name:
-                    continue
+                # if 'Transpose_' in node_name or 'Softmax_' in node_name or '3033' in node_name:
+                #     continue
                 stats[node_name][stats_name] = agf.max_per_channel(stats_values)
 
         print("Process {} MatMul nodes".format(len(mat_mul_inputs)))
@@ -75,8 +77,6 @@ class SmoothQuantize(Algorithm):
         mat_mul_inputs_groupped = self.group_nodes_by_source(mat_mul_inputs)
         num_layer = 0
         for k, val in mat_mul_inputs_groupped.items():
-            if 'Transpose_' in k.fullname or 'Softmax_' in k.fullname or '3033' in k.fullname:
-                continue
             if num_layer == self.layer_number or True:
                 self.smooth_quantize_groupped(k, val, stats)
             num_layer += 1
@@ -98,9 +98,24 @@ class SmoothQuantize(Algorithm):
     def smooth_quantize_groupped(self, node_in, dst_nodes, stats):
         # node_0 * node_1 = node_mat_mul_out
         name_in = node_in.fullname
-        # if name_in != 'Tanh_1241':
-        #     return
         bmms = 0
+
+        show = True
+
+        def create_quantizer(data_shape, input_low, input_high, output_low, output_high):
+            data = opset9.parameter(data_shape)
+            input_low_f = opset9.constant(input_low)
+            input_high_f = opset9.constant(input_high)
+            output_low_f = opset9.constant(output_low)
+            output_high_f = opset9.constant(output_high)
+            levels = 256
+
+            op = opset9.fake_quantize(data, input_low_f, input_high_f,
+                                      output_low_f, output_high_f, levels)
+
+            r = opset9.result(op)
+
+            return ov.Model([r], [data])
 
         if not name_in in stats:
             raise Exception("Input node 0 is Const")
@@ -112,18 +127,24 @@ class SmoothQuantize(Algorithm):
                 bmms += 1
 
         if bmms > 0:
-            print(f"Node {name_in} contains output for BMM")
+            if show: print(f"Node {name_in} contains output for BMM")
             return
 
-        dump_data = False
+        dump_data = True
         best_scale = None
         best_ratio = 0.0
         stats_activation = stats[name_in]['channel_range_max']
+        stats_activation = np.clip(stats_activation, a_min=1e-5, a_max=None)
+
         if dump_data: np.save(os.path.join('stats', name_in.replace('/', '_') + '.npy'), stats_activation)
-        stats_activation = np.max(stats_activation, axis=0)
+        # stats_activation = np.max(stats_activation, axis=0)
         if dump_data: np.save(os.path.join('stats', name_in.replace('/', '_') + '_max.npy'), stats_activation)
 
-        print(f"Node {name_in} smooth quantize. Shape: ", stats_activation.shape)
+        if stats_activation.size <= 1:
+            print(f"Skip node {name_in} smooth quantize. Shape: ", stats_activation.shape)
+            return
+
+        if show: print(f"Node {name_in} smooth quantize. Shape: ", stats_activation.shape)
 
         for dst_node in dst_nodes:
             node_in_1, node_mat_mul = dst_node
@@ -142,6 +163,7 @@ class SmoothQuantize(Algorithm):
                 raise Exception("Bad transpose")
             stats_w = np.abs(stats_w)
             stats_w = np.max(stats_w, axis=0)  # abs_max per column [M, K] * [K, N]
+            stats_w = np.clip(stats_w, a_min=1e-5, a_max=None)
 
             if dump_data: np.save(
                 os.path.join('stats', name_in.replace('/', '_') + "__" + name_in_1.replace('/', '_') + '_stats_w.npy'),
@@ -152,7 +174,7 @@ class SmoothQuantize(Algorithm):
             a_min = np.quantile(scales, 0.1)
             # a_min = np.quantile(scales, 0.8)
             # a_min = 1e-5
-            scales = np.clip(scales, a_min=a_min, a_max=None)
+            scales = np.clip(scales, a_min=a_min, a_max=1e2)
 
             if dump_data: np.save(
                 os.path.join('stats', name_in.replace('/', '_') + "__" + name_in_1.replace('/', '_') + '_scale.npy'),
@@ -193,7 +215,7 @@ class SmoothQuantize(Algorithm):
             stats_w_max = np.max(stats_w, axis=1)
             stats_w_min = np.min(stats_w, axis=1)
             ratio = stats_w_max / (stats_w_min + 0.0000000001)
-            print("Ratio before: ", ratio.min(), ratio.max())
+            if show: print("Ratio before: ", ratio.min(), ratio.max())
 
             weights = weights * w_scales
 
@@ -201,7 +223,7 @@ class SmoothQuantize(Algorithm):
             stats_w_max = np.max(stats_w, axis=1)
             stats_w_min = np.min(stats_w, axis=1)
             ratio = stats_w_max / (stats_w_min + 0.0000000001)
-            print("Ratio after: ", ratio.min(), ratio.max())
+            if show: print("Ratio after: ", ratio.min(), ratio.max())
 
             nu.set_node_value(node_in_1, weights)
 
@@ -217,18 +239,18 @@ class SmoothQuantize(Algorithm):
         try:
             non_zero_activations = stats_activation[idxs]
         except:
-            print("Strange shape: ", stats_activation.shape)
+            if show: print("Strange shape: ", stats_activation.shape)
             non_zero_activations = stats_activation
 
-        print("Activation ratio before: ", non_zero_activations.min() / non_zero_activations.max())
+        if show: print("Activation ratio before: ", non_zero_activations.min() / non_zero_activations.max())
         stats_activation = stats_activation * scales
         idxs = np.where(stats_activation > 0.0)
         try:
             non_zero_activations = stats_activation[idxs]
         except:
-            print("Strange shape: ", stats_activation.shape)
+            if show: print("Strange shape: ", stats_activation.shape)
             non_zero_activations = stats_activation
-        print("Activation ratio after: ", non_zero_activations.min() / non_zero_activations.max())
+        if show: print("Activation ratio after: ", non_zero_activations.min() / non_zero_activations.max())
 
         scales = np.expand_dims(scales, axis=(0, 1))
 
