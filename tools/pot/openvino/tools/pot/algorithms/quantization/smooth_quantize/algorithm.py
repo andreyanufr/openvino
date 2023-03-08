@@ -23,6 +23,7 @@ from openvino.tools.mo.ops.const import Const
 from openvino.tools.mo.front.common.partial_infer.utils import mo_array
 from openvino.runtime import opset9
 import openvino.runtime as ov
+from openvino.runtime import Core
 
 logger = get_logger(__name__)
 
@@ -77,9 +78,14 @@ class SmoothQuantize(Algorithm):
         mat_mul_inputs_groupped = self.group_nodes_by_source(mat_mul_inputs)
         num_layer = 0
         for k, val in mat_mul_inputs_groupped.items():
-            if num_layer == self.layer_number or True:
+            if num_layer != self.layer_number:  # or True:
+                # if not k.fullname in ["/roberta/encoder/layer.1/intermediate/intermediate_act_fn/Mul_1", "/roberta/encoder/layer.1/output/LayerNorm/Add_1", "/roberta/encoder/layer.3/attention/output/LayerNorm/Add_1"]:
+                #     continue
                 self.smooth_quantize_groupped(k, val, stats)
+            else:
+                print("Except layer: ", k.fullname)
             num_layer += 1
+
         return model
 
     @staticmethod
@@ -103,6 +109,7 @@ class SmoothQuantize(Algorithm):
         show = True
 
         def create_quantizer(data_shape, input_low, input_high, output_low, output_high):
+            core = Core()
             data = opset9.parameter(data_shape)
             input_low_f = opset9.constant(input_low)
             input_high_f = opset9.constant(input_high)
@@ -115,7 +122,22 @@ class SmoothQuantize(Algorithm):
 
             r = opset9.result(op)
 
-            return ov.Model([r], [data])
+            model = ov.Model([r], [data])
+
+            executable_network = core.compile_model(model, device_name='CPU')
+
+            return executable_network
+
+        def quantize(data, model):
+            inference_request = model.create_infer_request()
+            inference_request.infer(inputs=[data])
+            result = inference_request.get_output_tensor(0).data
+            return result
+
+        def PRD(x, y):
+            tmp = np.abs(x - y) / np.maximum(np.abs(x), np.abs(y))
+            tmp = np.mean(tmp, axis=0)
+            return np.max(tmp)
 
         if not name_in in stats:
             raise Exception("Input node 0 is Const")
@@ -217,7 +239,24 @@ class SmoothQuantize(Algorithm):
             ratio = stats_w_max / (stats_w_min + 0.0000000001)
             if show: print("Ratio before: ", ratio.min(), ratio.max())
 
+            input_hi = np.max(stats_w, axis=0)
+            input_hi = np.clip(input_hi, 1e-5, None)
+            weight_quantizer = create_quantizer(weights.shape, -input_hi, input_hi, -input_hi, input_hi)
+            q_weights_before = quantize(weights, weight_quantizer)
+            weights_before = deepcopy(weights)
+            prd_before = PRD(q_weights_before, weights_before)
+
             weights = weights * w_scales
+
+            stats_w = np.abs(weights)
+            input_hi = np.max(stats_w, axis=0)
+            input_hi = np.clip(input_hi, 1e-5, None)
+            weight_quantizer = create_quantizer(weights.shape, -input_hi, input_hi, -input_hi, input_hi)
+            q_weights_after = quantize(weights, weight_quantizer)
+            prd_after = PRD(q_weights_after, weights_before)
+
+            print(f"PRD: {node_in_1.fullname} {prd_before} {prd_after}")
+            ratio = prd_after / (prd_before + 1e-10)
 
             stats_w = np.abs(weights)
             stats_w_max = np.max(stats_w, axis=1)
