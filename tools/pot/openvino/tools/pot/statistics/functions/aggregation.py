@@ -32,7 +32,7 @@ def median(x):
 
 @aggregator.register()
 def max_per_channel(x):
-    return np.max(x, axis=(0, 1))
+    return np.max(x, axis=(0))
 
 
 @aggregator.register()
