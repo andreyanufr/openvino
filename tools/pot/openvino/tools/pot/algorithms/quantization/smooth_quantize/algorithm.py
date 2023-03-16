@@ -519,6 +519,8 @@ class SmoothQuantize(Algorithm):
 
         # compute the most smooth scale in the case of |MatMuls| > 1
         transpose_a = False
+        best_ratio = 0.0
+
         for dst_node in dst_nodes:
             node_in_1, node_mat_mul = dst_node
 
@@ -527,8 +529,6 @@ class SmoothQuantize(Algorithm):
             transpose_a = node_mat_mul['transpose_a']
 
             stats_w = deepcopy(nu.get_node_value(node_in_1))
-
-            name_in_1 = node_in_1.fullname
 
             if not node_mat_mul['transpose_b']:
                 raise Exception("Wrong value transpose_b. Not implemented.")

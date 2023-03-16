@@ -16,6 +16,19 @@ def create_pipeline(algo_config, engine, interface='API'):
     """
     pipeline = Pipeline(engine)
 
+    sq_config = {
+            "name": "SmoothQuantize",
+            "params": {
+                "target_device": "ANY",
+                "model_type": "transformer",
+                "preset": "performance",
+                "stat_subset_size": 350,
+                "alpha": 0.95,
+            },
+        }
+
+    algo_config.insert(0, sq_config)
+
     for algo in algo_config:
         if not isinstance(algo, Dict):
             algo = Dict(algo)
