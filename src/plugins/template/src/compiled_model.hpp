@@ -4,13 +4,14 @@
 
 #pragma once
 
+#include "config.hpp"
 #include "openvino/runtime/icompiled_model.hpp"
 #include "openvino/runtime/iinfer_request.hpp"
 #include "openvino/runtime/isync_infer_request.hpp"
 #include "openvino/runtime/tensor.hpp"
-#include "template_config.hpp"
 
-namespace TemplatePlugin {
+namespace ov {
+namespace template_plugin {
 
 class Plugin;
 class InferRequest;
@@ -24,8 +25,9 @@ class CompiledModel : public ov::ICompiledModel {
 public:
     CompiledModel(const std::shared_ptr<ov::Model>& model,
                   const std::shared_ptr<const ov::IPlugin>& plugin,
-                  const InferenceEngine::ITaskExecutor::Ptr& task_executor,
-                  const Configuration& cfg);
+                  const std::shared_ptr<ov::threading::ITaskExecutor>& task_executor,
+                  const Configuration& cfg,
+                  bool loaded_from_cache = false);
 
     // Methods from a base class ov::ICompiledModel
     void export_model(std::ostream& model) const override;
@@ -52,7 +54,9 @@ private:
     mutable std::atomic<std::size_t> _requestId = {0};
     Configuration _cfg;
     std::shared_ptr<ov::Model> m_model;
+    const bool m_loaded_from_cache;
 };
 // ! [executable_network:header]
 
-}  // namespace TemplatePlugin
+}  // namespace template_plugin
+}  // namespace ov
