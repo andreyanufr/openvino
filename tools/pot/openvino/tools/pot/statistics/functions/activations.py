@@ -98,6 +98,19 @@ def abs_max_per_channel(acts, **_):
     return max_per_channel(np.abs(acts))
 
 
+@compute_act_stats_fn_per_channel.register('abs_max_transformer')
+def abs_max_per_channel_transformer(acts, axis=0):
+    res = np.squeeze(np.abs(acts))
+    res = np.max(res, axis=axis)
+    return res
+
+@compute_act_stats_fn_per_channel.register('mean_transformer')
+def mean_per_channel_transformer(acts, axis=0):
+    res = np.squeeze(np.abs(acts))
+    res = np.mean(res, axis=axis)
+    return res
+
+
 @compute_act_stats_fn_per_channel.register('abs_quantile')
 def abs_quantile_per_channel(acts, q, **_):
     return quantile_per_channel(np.abs(acts), q)
