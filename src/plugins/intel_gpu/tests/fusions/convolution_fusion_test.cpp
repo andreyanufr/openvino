@@ -208,7 +208,7 @@ class ConvFusingForceKernelTest : public BaseFusingTest<bc_force_kernel_params> 
     public:
     void execute(bc_force_kernel_params& p) {
         auto input_prim = get_mem(get_input_layout(p));
-        ExecutionConfig config;
+        ExecutionConfig config = get_test_default_config(engine);
         config.set_property(ov::intel_gpu::optimize_data(true));
         ov::intel_gpu::ImplementationDesc conv_impl = { p.input_format, p.kernel_name };
         config.set_property(ov::intel_gpu::force_implementations(ov::intel_gpu::ImplForcingMap{ { "conv_prim", conv_impl } }));
@@ -1717,14 +1717,14 @@ TEST_P(conv_swap_xy_with_eltwise_diff_sizes, basic) {
 // in_shape; out_shape; eltw_shape; kernel; stride; pad; dilation; groups; data_type; input_format; weights_type; weights_format; default_type; default_format;
 #define CASE_CONV_ELTW_FP16_SWAP_XY_1 { 1, 16, 1, 5 }, { 1, 32, 1, 7 }, { 1, 32, 1, 1 }, { 1, 1, 1, 3 }, { 1, 1 }, { 2, 0 }, { 1, 1 }, 1, data_types::f16, format::bfyx, data_types::f16, format::os_iyx_osv16, data_types::f16, format::bfyx
 #define CASE_CONV_ELTW_FP16_SWAP_XY_2 { 1, 16, 1, 5 }, { 1, 32, 1, 7 }, { 1, 32, 1, 7 }, { 1, 1, 1, 3 }, { 1, 1 }, { 2, 0 }, { 1, 1 }, 1, data_types::f16, format::bfyx, data_types::f16, format::os_iyx_osv16, data_types::f16, format::bfyx
-#define CASE_CONV_ELTW_FP32_SWAP_XY_1 { 3, 16, 1, 5 }, { 3, 32, 1, 7 }, { 1, 32, 1, 1 }, { 1, 1, 1, 3 }, { 1, 1 }, { 2, 0 }, { 1, 1 }, 1, data_types::f32, format::bfyx, data_types::f32, format::os_iyx_osv16, data_types::f32, format::bfyx
-#define CASE_CONV_ELTW_FP32_SWAP_XY_2 { 3, 16, 1, 5 }, { 3, 32, 1, 7 }, { 3, 32, 1, 7 }, { 1, 1, 1, 3 }, { 1, 1 }, { 2, 0 }, { 1, 1 }, 1, data_types::f32, format::bfyx, data_types::f32, format::os_iyx_osv16, data_types::f32, format::bfyx
+#define CASE_CONV_ELTW_FP16_SWAP_XY_3 { 3, 16, 1, 5 }, { 3, 32, 1, 7 }, { 1, 32, 1, 1 }, { 1, 1, 1, 3 }, { 1, 1 }, { 2, 0 }, { 1, 1 }, 1, data_types::f16, format::bfyx, data_types::f16, format::os_iyx_osv16, data_types::f16, format::bfyx
+#define CASE_CONV_ELTW_FP16_SWAP_XY_4 { 3, 16, 1, 5 }, { 3, 32, 1, 7 }, { 3, 32, 1, 7 }, { 1, 1, 1, 3 }, { 1, 1 }, { 2, 0 }, { 1, 1 }, 1, data_types::f16, format::bfyx, data_types::f16, format::os_iyx_osv16, data_types::f16, format::bfyx
 
 INSTANTIATE_TEST_SUITE_P(fusings_gpu, conv_swap_xy_with_eltwise_diff_sizes, ::testing::ValuesIn(std::vector<conv_eltw_test_params>{
-    conv_eltw_test_params{ CASE_CONV_ELTW_FP16_SWAP_XY_1, 3, 3, 4 },
-    conv_eltw_test_params{ CASE_CONV_ELTW_FP16_SWAP_XY_2, 3, 3, 4 },
-    conv_eltw_test_params{ CASE_CONV_ELTW_FP32_SWAP_XY_1, 3, 3, 4 },
-    conv_eltw_test_params{ CASE_CONV_ELTW_FP32_SWAP_XY_2, 3, 3, 4 },
+    conv_eltw_test_params{ CASE_CONV_ELTW_FP16_SWAP_XY_1, 3, 2, 4 },
+    conv_eltw_test_params{ CASE_CONV_ELTW_FP16_SWAP_XY_2, 3, 2, 4 },
+    conv_eltw_test_params{ CASE_CONV_ELTW_FP16_SWAP_XY_3, 3, 2, 4 },
+    conv_eltw_test_params{ CASE_CONV_ELTW_FP16_SWAP_XY_4, 3, 2, 4 },
 }));
 
 class conv_scale_activation_eltwise_fp32_quantize_i8 : public ConvEltwTest {};
@@ -4178,8 +4178,6 @@ public:
         p.expected_fused_primitives = p.expected_fused_primitives_onednn;
 
         cldnn::memory::ptr input_prim = get_mem(get_input_layout(p));
-        cfg_fused.set_property(ov::intel_gpu::queue_type(QueueTypes::in_order));
-        cfg_not_fused.set_property(ov::intel_gpu::queue_type(QueueTypes::in_order));
 
         network network_not_fused(this->engine, this->topology_non_fused, cfg_not_fused);
         network network_fused(this->engine, this->topology_fused, cfg_fused);
