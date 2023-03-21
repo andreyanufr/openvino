@@ -364,7 +364,7 @@ class Config(Dict):
             algo['params']['dump_intermediate_model'] = self['compression'].get(
                 'dump_intermediate_model', False)
             algo['params']['inplace_statistics'] = self['compression'].get(
-                'inplace_statistics', True)
+                'inplace_statistics', False)
 
     def _configure_logger_params(self):
         """ Creates a log directory name based on model and algo configurations
