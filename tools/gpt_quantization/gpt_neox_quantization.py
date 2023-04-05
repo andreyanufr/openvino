@@ -56,7 +56,7 @@ from transformers import (
 
 # Set the data and model directories, source URL and the filename of the model.
 DATA_DIR = "data"
-MODEL_DIR = "model_spr"
+MODEL_DIR = "gpt_neox_ov_model_spr"
 MODEL_LINK = "https://download.pytorch.org/tutorial/MRPC.zip"
 FILE_NAME = MODEL_LINK.split("/")[-1]
 
@@ -75,8 +75,8 @@ calibration_dataset = load_dataset('wikitext', 'wikitext-2-v1', split='train[:10
 # In[ ]:
 
 
-ir_model_xml = "/home/aanuf/gpt_neox/ov_model/gpt_neox_model_.xml"
-ir_model_bin = "/home/aanuf/gpt_neox/ov_model/gpt_neox_model_.bin"
+ir_model_xml = "/home/aanuf/gpt_neox/gpt_neox_ov_model/gpt_neox_model_.xml"
+ir_model_bin = "/home/aanuf/gpt_neox/gpt_neox_ov_model/gpt_neox_model_.bin"
 
 
 class MRPCDataLoader(POTDataLoader):
@@ -137,7 +137,9 @@ class TextPreprocessor:
         if pad_len > 0:
             attention_mask[:, -pad_len:] = 0.0
 
-        return {'input_ids': input_ids, 'attention_mask': attention_mask}
+        past_key_values = np.zeros((32, 2, 1, 32, 1, 80), dtype=float)
+
+        return {'input_ids': input_ids, "past_key_values.1": past_key_values}
 
 
 def build_tokenizer(model_id, model_max_length=MAX_SEQ_LENGTH):
@@ -202,13 +204,13 @@ class Accuracy(Metric):
 
 warnings.filterwarnings("ignore")  # Suppress accuracychecker warnings.
 
-model_config = Dict({"model_name": "roberta_base", "model": ir_model_xml, "weights": ir_model_bin})
+model_config = Dict({"model_name": "gpt_neox_model", "model": ir_model_xml, "weights": ir_model_bin})
 engine_config = Dict({"device": "CPU"})
 
-alpha = 0.95
+# alpha = 0.95
 
-if len(sys.argv) > 1:
-    alpha = float(sys.argv[1])
+# if len(sys.argv) > 1:
+#     alpha = float(sys.argv[1])
 
 algorithms = [
     # {
