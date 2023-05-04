@@ -62,7 +62,7 @@ class DefaultQuantization(Algorithm):
     def run(self, model):
         """ This function applies quantization algorithm
          :param model: model to apply algo
-         :return model with inserted and filled ConvertFP8 nodes
+         :return model with inserted and filled FakeConvertFP nodes
          """
         if self._enable_tuning:
             if not TORCH_AVAILABLE:

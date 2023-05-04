@@ -295,7 +295,7 @@ class AccuracyAwareCommon(Algorithm):
             logger.info('Accuracy drop with the new quantization scope is %s', metrics_accuracy_drop)
 
             # removed all fake-quantize layers from the model
-            if not get_nodes_by_type(model, ['ConvertFP8']):
+            if not get_nodes_by_type(model, ['FakeConvertFP']):
                 logger.info('Removed all FQ layers from the network!')
                 changed_all_fq = True
                 break
@@ -416,7 +416,7 @@ class AccuracyAwareCommon(Algorithm):
         node_importance_score = {}
         eu.select_evaluation_dataset(self._engine)
 
-        fake_quantize_nodes = get_nodes_by_type(model, ['ConvertFP8'])
+        fake_quantize_nodes = get_nodes_by_type(model, ['FakeConvertFP'])
         for node in fake_quantize_nodes:
             if excluded_nodes and node.fullname in excluded_nodes:
                 continue

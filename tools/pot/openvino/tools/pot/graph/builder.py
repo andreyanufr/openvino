@@ -45,7 +45,7 @@ def build_graph(graph_attrs, meta_data, nodes, edges):
 
 
 def make_copy_fake_quantize(nodes, edges, fq):
-    weights, scales = get_node_inputs(fq)
+    weights, scales, shift = get_node_inputs(fq)
 
     fq_attrs = deepcopy(fq.attrs())
     if fq.has_valid('levels'):
@@ -54,12 +54,14 @@ def make_copy_fake_quantize(nodes, edges, fq):
     nodes.extend([
         (fq.name, fq.type, fq_attrs),
         (weights.name, weights.type, {'value': weights.value.copy()}),
-        (scales.name, scales.type, {'value': scales.value.copy()})
+        (scales.name, scales.type, {'value': scales.value.copy()}),
+        (shift.name, shift.type, {'value': shift.value.copy()})
     ])
 
     edges.extend([
         (weights.name, fq.name, {'out': 0, 'in': 0}),
-        (scales.name, fq.name, {'out': 0, 'in': 1})
+        (scales.name, fq.name, {'out': 0, 'in': 1}),
+        (shift.name, fq.name, {'out': 0, 'in': 2})
     ])
     return fq.name
 
@@ -108,7 +110,7 @@ def build_graph_for_node(model, input_name, input_shape, node, remove_bias=False
     edges.append((input_name, node.name, {'out': 0, 'in': 0}))
 
     parent_nodes = get_node_inputs(node)
-    if parent_nodes[1].type == 'ConvertFP8' and not remove_fake_quantize:
+    if parent_nodes[1].type == 'FakeConvertFP' and not remove_fake_quantize:
         fq = parent_nodes[1]
         fq_name = make_copy_fake_quantize(nodes, edges, fq)
         edges.append((fq_name, node.name, {'out': 0, 'in': 1}))
@@ -118,7 +120,7 @@ def build_graph_for_node(model, input_name, input_shape, node, remove_bias=False
         edges.append((weights.name, node.name, {'out': 0, 'in': 1}))
 
     if not remove_bias:
-        if parent_nodes[2].type == 'ConvertFP8' and not remove_fake_quantize:
+        if parent_nodes[2].type == 'FakeConvertFP' and not remove_fake_quantize:
             fq = parent_nodes[1]
             fq_name = make_copy_fake_quantize(nodes, edges, fq)
             edges.append((fq_name, node.name, {'out': 0, 'in': 2}))
@@ -136,7 +138,7 @@ def build_graph_for_node(model, input_name, input_shape, node, remove_bias=False
     src_node = get_node_by_name(graph, node.name)
     weights_node = get_node_input(src_node, 1)
     weights_node = get_node_input(weights_node, 0) \
-        if weights_node.type == 'ConvertFP8' else weights_node
+        if weights_node.type == 'FakeConvertFP' else weights_node
     weights_out_dtype = weights_node.out_port(0).get_data_type()
     src_out_dtype = src_node.out_port(0).get_data_type()
     if weights_out_dtype != src_out_dtype:

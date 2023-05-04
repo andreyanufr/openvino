@@ -73,7 +73,7 @@ class FastBiasCorrection(Algorithm):
 
             input_node = nu.get_node_input(op_node, 0)
             quantized_node = op_node
-            if input_node.type == 'ConvertFP8':
+            if input_node.type == 'FakeConvertFP':
                 input_node = nu.get_node_input(input_node, 0)
                 quantized_node = nu.get_node_input(op_node, 0)
 
@@ -134,7 +134,7 @@ class FastBiasCorrection(Algorithm):
         for op_node in nodes_with_bias:
             if nu.node_with_quantized_weights(op_node) or self._apply_for_all_nodes:
                 quantized_node = op_node
-                if nu.get_node_input(quantized_node, 0).type == 'ConvertFP8':
+                if nu.get_node_input(quantized_node, 0).type == 'FakeConvertFP':
                     quantized_node = nu.get_node_input(op_node, 0)
 
                 op_output_name = op_node.fullname
@@ -196,7 +196,7 @@ class FastBiasCorrection(Algorithm):
                 continue
 
             input_node = nu.get_node_input(op_node, 0)
-            if input_node.type == 'ConvertFP8':
+            if input_node.type == 'FakeConvertFP':
                 input_node = nu.get_node_input(input_node, 0)
 
             bias = nu.get_bias_for_node(op_node)

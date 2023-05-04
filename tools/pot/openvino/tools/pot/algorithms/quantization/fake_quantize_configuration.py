@@ -370,21 +370,21 @@ def find_fqs_to_unify(model, config):
         if _is_unified_scales_op(node_) or _is_agnostic_branching_op(node_):
             if not _has_const_input(node_):
                 to_unify_[0].append(node_.fullname)
-        elif node_.type == 'ConvertFP8' and get_node_input(node_, 0).type != 'Const':
+        elif node_.type == 'FakeConvertFP' and get_node_input(node_, 0).type != 'Const':
             to_unify_[1].append(node_.fullname)
         # traverse down
-        if node_.type == 'ConvertFP8' or _is_quantize_agnostic_op(node_):
+        if node_.type == 'FakeConvertFP' or _is_quantize_agnostic_op(node_):
             for child in get_all_node_outputs(node_):
                 node_data_type = get_node_data_type(child)
                 if not visited_[child.fullname] and is_data_type_quantizable(node_data_type) and \
                         (_is_quantize_agnostic_op(child) or _is_unified_scales_op(child)):
                     stack_.append(child)
         # traverse up
-        if node_.type != 'ConvertFP8':
+        if node_.type != 'FakeConvertFP':
             for parent in get_node_inputs(node_):
                 node_data_type = get_node_data_type(parent)
                 if parent and not visited_[parent.fullname] and is_data_type_quantizable(node_data_type) and \
-                        (parent.type == 'ConvertFP8' or _is_quantize_agnostic_op(parent)):
+                        (parent.type == 'FakeConvertFP' or _is_quantize_agnostic_op(parent)):
                     stack_.append(parent)
 
     hardware_config = load_hardware_config(config)
@@ -399,7 +399,7 @@ def find_fqs_to_unify(model, config):
     fqs_to_unify = []
     if model is None:
         return fqs_to_unify
-    for fq in get_nodes_by_type(model, ['ConvertFP8']):
+    for fq in get_nodes_by_type(model, ['FakeConvertFP']):
         if not visited[fq.fullname] and get_node_input(fq, 0).type != 'Const':
             stack = [fq]
             to_unify = [[], []]
@@ -456,7 +456,7 @@ def _fake_quantize_to_types(model, hardware_config):
 
     out = {}
     available_types = [layer['type'] for layer in hardware_config]
-    for fq in get_nodes_by_type(model, ['ConvertFP8']):
+    for fq in get_nodes_by_type(model, ['FakeConvertFP']):
         if fq['fq_group'] == 'outputs':
             fq_input = get_node_input(fq, 0)
             hw_node_types = get_hardware_config_operation_type(fq_input, available_types)
@@ -475,7 +475,7 @@ def change_configurations_by_model_type(model, config, fq_configuration, hardwar
 
 def change_configurations_by_model_type_transformer(model, fq_configuration, hardware_config):
     fq_types = _fake_quantize_to_types(model, hardware_config)
-    for fq in get_nodes_by_type(model, ['ConvertFP8']):
+    for fq in get_nodes_by_type(model, ['FakeConvertFP']):
         node_creator_fq, fq_group = fq_types[fq.name]
         is_weights = fq_group == 'weights'
         node_name = None

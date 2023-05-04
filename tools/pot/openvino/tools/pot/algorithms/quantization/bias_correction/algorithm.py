@@ -147,7 +147,7 @@ class BiasCorrection(Algorithm):
         return subgraphs_data
 
     def _remove_fq_from_inputs(self, model):
-        fq_nodes = mu.get_nodes_by_type(model, ['ConvertFP8'])
+        fq_nodes = mu.get_nodes_by_type(model, ['FakeConvertFP'])
         fq_names_to_cut = []
         for fq_node in fq_nodes:
             if nu.get_node_input(fq_node, 0).type != 'Const':
@@ -371,7 +371,7 @@ class BiasCorrection(Algorithm):
     def _collect_new_stats(self, model_copy, bias_is_updated, **params):
         if not model_copy.is_cascade and params['results_data_dict']:
             if not bias_is_updated:
-                fq_nodes = mu.get_nodes_by_type(model_copy, ['ConvertFP8'])
+                fq_nodes = mu.get_nodes_by_type(model_copy, ['FakeConvertFP'])
                 self._graph_transformer.remove_fq_nodes(model_copy, fq_nodes)
             self._launcher.set_model(model_copy)
             for feed_dict in params['feed_dicts']:

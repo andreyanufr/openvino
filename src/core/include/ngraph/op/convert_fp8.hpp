@@ -9,8 +9,8 @@
 
 namespace ngraph {
 namespace op {
-namespace v1 {
-using ov::op::v1::ConvertFP8;
-}  // namespace v1
+namespace v10 {
+using ov::op::v10::FakeConvertFP;
+}  // namespace v10
 }  // namespace op
 }  // namespace ngraph

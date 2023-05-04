@@ -14,15 +14,16 @@
 //! [op:header]
 namespace ov {
 namespace op {
-namespace v1 {
-    class OPENVINO_API ConvertFP8 : public Op {
+namespace v10 {
+    class OPENVINO_API FakeConvertFP : public Op {
     public:
-        OPENVINO_OP("ConvertFP8", "opset1");
+        OPENVINO_OP("FakeConvertFP", "opset10");
         BWDCMP_RTTI_DECLARATION;
 
-        ConvertFP8();
-        ConvertFP8(const ov::Output<ov::Node>& arg,
+        FakeConvertFP();
+        FakeConvertFP(const ov::Output<ov::Node>& arg,
                    const ov::Output<ov::Node>& scale,
+                   const ov::Output<ov::Node>& shift,
                    const std::string& destination_type,
                    bool apply_scale);
 
@@ -35,7 +36,7 @@ namespace v1 {
 
     private:
         void validate() const;
-        std::string m_destination_type = "hf8_ext";
+        std::string m_destination_type = "HF8";
         bool m_apply_scale = false;
         static const std::vector<std::string> m_valid_types;
     };

@@ -98,20 +98,20 @@ class FakeQuantize(Op):
                 node.out_node().value = output
 
 
-class ConvertFP8(Op):
-    op = 'ConvertFP8'
+class FakeConvertFP(Op):
+    op = 'FakeConvertFP'
 
     def __init__(self, graph: Graph, attrs: dict):
         mandatory_props = {
             'type': self.op,
             'op': self.op,
-            'version': 'opset1',
+            'version': 'opset10',
             'is_eltwise': True,
             'infer': self.infer,
-            'in_ports_count': 2,
+            'in_ports_count': 3,
             'out_ports_count': 1,
             'auto_broadcast': 'numpy',
-            'destination_type': 'hf8_ext',
+            'destination_type': 'HF8',
             'apply_scale': False,
         }
         super().__init__(graph, mandatory_props, attrs)
@@ -125,10 +125,10 @@ class ConvertFP8(Op):
 
     @staticmethod
     def infer(node: Node):
-        assert len(node.in_nodes()) == 2
+        assert len(node.in_nodes()) == 3
         assert len(node.out_nodes()) == 1
-        inputs = [node.in_node(i) for i in range(2)]
-        x, input_low = inputs
+        inputs = [node.in_node(i) for i in range(3)]
+        x, scale, shift = inputs
 
         assert x.has_valid('shape')
         # TODO Check all inputs[1..4] shapes are broadcastable to inputs[0] shape

@@ -211,7 +211,7 @@ def node_with_quantized_weights(node):
     :return: True if node has quantized weights and False instead
     """
     weights_input = get_node_input(node, 1)
-    if weights_input.type == 'ConvertFP8' and get_node_input(weights_input, 0).type == 'Const':
+    if weights_input.type == 'FakeConvertFP' and get_node_input(weights_input, 0).type == 'Const':
         return True
 
     return False
@@ -240,7 +240,7 @@ def get_first_convolutions(parameter_nodes):
 
 def check_const_input(node):
     w_out = get_weights_for_node(node)
-    if w_out.type == 'ConvertFP8':
+    if w_out.type == 'FakeConvertFP':
         w_out = get_node_input(w_out, 0)
     if w_out.type != 'Const':
         return False

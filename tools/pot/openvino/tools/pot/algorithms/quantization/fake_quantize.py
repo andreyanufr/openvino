@@ -92,8 +92,8 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
     :param max_level: high border of quantization range
     """
 
-    max_vals = {"hf8_ext": 28, "hf8_libxsmm": 448, "bf8": 57344}
-    fq.destination_type = 'hf8_ext'  # 'hf8_libxsmm' #'hf8_ext'
+    max_vals = {"HF8": 448, "BF8": 57344}
+    fq.destination_type = 'HF8'
 
     is_weights = fq['fq_group'] == 'weights'
 
@@ -101,7 +101,7 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
     if not is_weights:
         scale = 0.5 * scale
     fq.apply_scale = True
-
+    shift = np.zeros_like(scale)
     print(fq.name, ' th value: ', fq.destination_type, fq.apply_scale, scale.shape)
 
     def _update_node_val(port_idx, value):
@@ -109,6 +109,7 @@ def fill_fake_quantize_node(fq, min_level, max_level, output_low=None, output_hi
         set_node_value(_node, value)
 
     _update_node_val(1, scale)
+    _update_node_val(2, shift)
 
 
 def compute_stats_layouts(config, model, qscheme=None):
@@ -132,7 +133,7 @@ def compute_stats_layouts(config, model, qscheme=None):
     change_configurations_by_model_type(model, config, fq_configuration, hardware_config)
 
     # get all fake quantize nodes
-    fq_nodes = get_nodes_by_type(model, ['ConvertFP8'])
+    fq_nodes = get_nodes_by_type(model, ['FakeConvertFP'])
 
     fake_quantize_config = {}
     for fq in fq_nodes:
@@ -311,7 +312,7 @@ def get_quantized_model(model, create_stats_collector, activations_statistics,
     :param fill_fq_range: functor to generate min and max range for fake quantize node
     :param config: dictionary with params algo section from toolkit config
      """
-    # ConvertFP8 nodes insertion
+    # FakeConvertFP nodes insertion
     insert_fake_quantize_nodes(config, model, qscheme=qscheme)
 
     fake_quantize_config = compute_stats_layouts(config, model, qscheme=qscheme)
@@ -339,8 +340,8 @@ def compute_weights_stats(model, stats_layout):
     weights_stats = {}
     for fq_name, stats in stats_layout.items():
         fq_node = get_node_by_name(model, fq_name)
-        if fq_node.type != 'ConvertFP8':
-            raise Exception('ConvertFP8 node for weights is missed')
+        if fq_node.type != 'FakeConvertFP':
+            raise Exception('FakeConvertFP node for weights is missed')
         node = get_fake_quantize_first_output(fq_node)
         weights_node = get_node_input(fq_node, 0)
         weights_value = get_input_data_value(fq_node, 0)

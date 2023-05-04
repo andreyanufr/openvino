@@ -16,10 +16,10 @@ class FakeQuantizeFrontExtractor(FrontExtractorOp):
         FakeQuantize.update_node_stat(node, {'levels': levels})
         return FakeQuantizeFrontExtractor.enabled
 
-class ConvertFP8FrontExtractor(FrontExtractorOp):
-    op = 'ConvertFP8'
+class FakeConvertFPFrontExtractor(FrontExtractorOp):
+    op = 'FakeConvertFP'
     enabled = True
 
     @classmethod
     def extract(cls, node):
-        return ConvertFP8FrontExtractor.enabled
+        return FakeConvertFPFrontExtractor.enabled

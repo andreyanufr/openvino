@@ -124,7 +124,7 @@ class OpVersioning(BackReplacementPattern):
         "Transpose",
         "Unsqueeze",
         "VariadicSplit",
-        "ConvertFP8"
+        "FakeConvertFP"
     ]))
 
     opset_1_experimental_ops = set(map(lambda s: s.lower(), [

@@ -240,7 +240,7 @@ def get_mixed_preset_config(config: Dict):
 def get_num_of_quantized_ops(model, quantizable_operations):
     quantized_ops = set()
     nodes_to_see = []
-    for fq_node in get_nodes_by_type(model, ['ConvertFP8']):
+    for fq_node in get_nodes_by_type(model, ['FakeConvertFP']):
         nodes_to_see.extend(get_all_node_outputs(fq_node))
         while nodes_to_see:
             child = nodes_to_see.pop()
