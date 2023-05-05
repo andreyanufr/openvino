@@ -341,7 +341,7 @@ void convertfp16_hf8_bias7(const T* arg, T* out, size_t count, int exp_bits = 5,
         short sign_h = (h.u & 0x8000);           /// & 1 00000 0000000000
         short mantissa_h = (h.u & 0x03FF);       /// & 0 00000 1111111111
         ///(h.u && 0111111111111111) < 0 10010 1110000000 (19326) - ????
-        unsigned short can_round = ((h.u & 0x7FFF) < 0b100111110000000) ? 1 : 0;
+        unsigned short can_round = ((h.u & 0x7FFF) < 0b101111110000000) ? 1 : 0;
 
         unsigned short is_naninf = ((h.u & 0x7C00) == 0x7C00) ? 1 : 0;
 
@@ -349,7 +349,7 @@ void convertfp16_hf8_bias7(const T* arg, T* out, size_t count, int exp_bits = 5,
         if (exp_h > 8) {  // too large, set it to NaN or inf
             if (use_clamp) {
                 exp_h = 8;
-                mantissa_h = 0b000001100000000;
+                mantissa_h = 0b0000001100000000;
             } else {
                 mantissa_h = 0;
                 exp_h = 16;
@@ -361,8 +361,8 @@ void convertfp16_hf8_bias7(const T* arg, T* out, size_t count, int exp_bits = 5,
             mantissa_h = 0;
         }
 
-        if (exp_h == 8 && mantissa_h > 0b000001100000000) {
-            mantissa_h = 0b000001100000000;
+        if (exp_h == 8 && mantissa_h >= 0b0000001100000000) {
+            mantissa_h = 0b0000001100000000;
         }
         /* nearest rounding masks, & 0 00000 000 111 1111 - mantissa bits below hf8 (grs) */
         unsigned short rnmask = (mantissa_h & grs_bitmask);
