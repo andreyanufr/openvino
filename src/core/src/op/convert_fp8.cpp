@@ -494,14 +494,19 @@ bool op::v10::FakeConvertFP::evaluate(ov::TensorVector& outputs, const ov::Tenso
     ov::TensorVector fp16;
 
     OPENVINO_ASSERT(
-        outputs[0].get_element_type() == ov::element::f32 && inputs[0].get_element_type() == ov::element::f32,
+        (outputs[0].get_element_type() == ov::element::f32 && inputs[0].get_element_type() == ov::element::f32) ||
+        outputs[0].get_element_type() == ov::element::f16 && inputs[0].get_element_type() == ov::element::f16,
         "Wrong input or output type for FakeConvertFP::evaluate");
 
     outputs[0].set_shape(inputs[0].get_shape());
     fp16.emplace_back(ov::Tensor(ov::element::f16, inputs[0].get_shape()));
     int element_count = inputs[0].get_size();
 
-    ngraph::runtime::reference::convert(inputs[0].data<float>(), fp16[0].data<ov::float16>(), element_count);
+    if (inputs[0].get_element_type() == ov::element::f16) {
+        memcpy(fp16[0].data(), inputs[0].data(), inputs[0].get_byte_size());
+    } else {
+        ngraph::runtime::reference::convert(inputs[0].data<float>(), fp16[0].data<ov::float16>(), element_count);
+    }
 
     if (m_apply_scale) {
         convert_fp8::apply_per_channel_scale<ov::float16>(fp16[0], inputs[1], inputs[2]);
@@ -515,7 +520,10 @@ bool op::v10::FakeConvertFP::evaluate(ov::TensorVector& outputs, const ov::Tenso
     }
 
     if (m_apply_scale) {
-        convert_fp8::apply_per_channel_scale<float>(outputs[0], inputs[1], inputs[2], true);
+        if (outputs[0].get_element_type() == ov::element::f16)
+            convert_fp8::apply_per_channel_scale<float16>(outputs[0], inputs[1], inputs[2], true);
+        else
+            convert_fp8::apply_per_channel_scale<float>(outputs[0], inputs[1], inputs[2], true);
     }
 
     return true;
