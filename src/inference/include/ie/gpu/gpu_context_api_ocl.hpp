@@ -10,6 +10,12 @@
  */
 #pragma once
 
+// TODO: Remove after migration to new API in the benchmark app
+#ifndef IN_OV_COMPONENT
+#    define IN_OV_COMPONENT
+#    define WAS_OV_LIBRARY_DEFINED
+#endif
+
 #include <ie_remote_context.hpp>
 #include <memory>
 #include <string>
@@ -230,6 +236,7 @@ public:
  * @param nv12_image_plane_uv cl::Image2D object containing UV plane data.
  * @return A shared remote blob instance
  */
+OPENVINO_DEPRECATED("This function is deprecated and will be removed in 2023.1 release")
 static inline Blob::Ptr make_shared_blob_nv12(RemoteContext::Ptr ctx,
                                               cl::Image2D& nv12_image_plane_y,
                                               cl::Image2D& nv12_image_plane_uv) {
@@ -361,3 +368,8 @@ static inline Blob::Ptr make_shared_blob(const TensorDesc& desc, RemoteContext::
 }  // namespace gpu
 
 }  // namespace InferenceEngine
+
+#ifdef WAS_OV_LIBRARY_DEFINED
+#    undef IN_OV_COMPONENT
+#    undef WAS_OV_LIBRARY_DEFINED
+#endif

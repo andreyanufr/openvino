@@ -133,7 +133,6 @@ void Transpose::initSupportedPrimitiveDescriptors() {
     auto& creatorsMap = BlockedDescCreator::getCommonCreators();
 
     NodeConfig config;
-    config.dynBatchSupport = true;
     config.inConfs.resize(2);
     config.outConfs.resize(1);
     config.inConfs[INPUT_DATA_IDX].inPlace(-1);
@@ -202,6 +201,12 @@ void Transpose::prepareParams() {
             parse_impl_name(DnnlExtensionUtils::query_impl_info_str(prim.get_primitive_desc())));
 
         primArgs = {{DNNL_ARG_SRC, srcMemPtr->GetPrimitive()}, {DNNL_ARG_DST, dstMemPtr->GetPrimitive()}};
+#ifdef CPU_DEBUG_CAPS
+        if (prim) {
+            auto pd = prim.get_primitive_desc();
+            DEBUG_LOG("verbose##", getName(), "##", DnnlExtensionUtils::query_pd_info(pd), "\n");
+        }
+#endif
         return;
     }
 
@@ -376,12 +381,7 @@ void Transpose::execute(dnnl::stream strm) {
         auto &dstMemPtr = getChildEdgeAt(0)->getMemoryPtr();
         auto &srcMemPtr = getParentEdgeAt(INPUT_DATA_IDX)->getMemoryPtr();
 
-        int MB = 0;
-        if (isDynamicNode()) {
-            MB = srcMemPtr->getStaticDims()[0];
-        } else {
-            MB = batchToProcess();
-        }
+        int MB = srcMemPtr->getStaticDims()[0];
 
         execPtr->exec(this, srcMemPtr, dstMemPtr, MB);
     } else {

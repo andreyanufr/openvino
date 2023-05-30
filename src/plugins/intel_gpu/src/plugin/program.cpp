@@ -148,6 +148,8 @@ Program::Program(InferenceEngine::CNNNetwork& network, cldnn::engine& engine, co
     Dl_info dl_info;
     dladdr(reinterpret_cast<void *>(CustomLayer::LoadFromFile), &dl_info);
     const char* mpath = dl_info.dli_fname;
+#else
+#error "Intel GPU plugin: unknown target system"
 #endif
     std::string configFile(mpath);
     std::size_t dir_split_pos = configFile.find_last_of("/\\");
@@ -303,6 +305,19 @@ Program::Program(InferenceEngine::CNNNetwork& network, cldnn::engine& engine, co
     }
 }
 
+Program::Program(cldnn::engine& engine, const ExecutionConfig& config,
+                 InferenceEngine::InputsDataMap* inputs, InferenceEngine::OutputsDataMap* outputs)
+        : m_max_batch(1)
+        , m_curBatch(-1)
+        , m_config(config)
+        , m_engine(engine)
+        , queryMode(false) {
+    if (inputs != nullptr)
+        m_networkInputs = *inputs;
+    if (outputs != nullptr)
+        m_networkOutputs = *outputs;
+}
+
 int Program::GetMaxBatchSizeForSingleProgram() {
     auto max_dynamic_batch = m_config.get_property(ov::intel_gpu::max_dynamic_batch);
     if (max_dynamic_batch > 1) {
@@ -356,7 +371,7 @@ std::shared_ptr<cldnn::program> Program::BuildProgram(const std::vector<std::sha
     OV_ITT_SCOPED_TASK(itt::domains::intel_gpu_plugin, "Program::BuildProgram");
 
     for (const auto& op : ops) {
-        if (op->is_dynamic()) {
+        if (requires_new_shape_infer(*op)) {
             allow_new_shape_infer = true;
             break;
         }
@@ -404,6 +419,7 @@ bool Program::IsOpSupported(const InferenceEngine::CNNNetwork& network, const st
         // 2. We also check parameters of each operation, which means we have more
         //    reliable results of QueryNetwork call.
         PrepareBuild(network.getInputsInfo(), network.getOutputsInfo());
+        allow_new_shape_infer = requires_new_shape_infer(*op);
         CreateSingleLayerPrimitive(topology, op);
         CleanupBuild();
         DisableQueryMode();
@@ -418,7 +434,7 @@ bool Program::IsOpSupported(const InferenceEngine::CNNNetwork& network, const st
 
 void Program::CreateSingleLayerPrimitive(cldnn::topology& topology, const std::shared_ptr<ngraph::Node>& op) {
     OV_ITT_SCOPED_TASK(itt::domains::intel_gpu_plugin, "Program::CreateSingleLayerPrimitive");
-    GPU_DEBUG_LOG << "Process " << "op::v" << op->get_type_info().version << "::" << op->get_type_name() << " operation "
+    GPU_DEBUG_LOG << "Process " << "op::v" << op->get_type_info().version_id << "::" << op->get_type_name() << " operation "
                   << "(friendly_name=" << op->get_friendly_name() << ")" << std::endl;
 
     bool is_created = false;
@@ -442,7 +458,7 @@ void Program::CreateSingleLayerPrimitive(cldnn::topology& topology, const std::s
     if (!is_created) {
         IE_THROW() << "Operation: " << op->get_friendly_name()
                    << " of type " << op->get_type_name()
-                   << "(op::v" << op->get_type_info().version << ") is not supported";
+                   << "(op::v" << op->get_type_info().version_id << ") is not supported";
     }
 }
 
@@ -529,6 +545,24 @@ void Program::add_primitive(const ngraph::Node& op, std::shared_ptr<cldnn::primi
     m_topology->add_primitive(prim);
 }
 
+bool Program::requires_new_shape_infer(const ngraph::Node& op) const {
+    if (op.is_dynamic()) {
+        return true;
+    }
+
+    for (size_t i = 0; i < op.get_output_size(); i++) {
+        if (op.get_output_partial_shape(i).size() > 6)
+            return true;
+    }
+
+    for (size_t i = 0; i < op.get_input_size(); i++) {
+        if (op.get_input_partial_shape(i).size() > 6)
+            return true;
+    }
+
+    return false;
+}
+
 // TODO: Does it make sense to add such method to ngraph core?
 bool IsNodeOnConstPath(const std::shared_ptr<ngraph::Node>& node) {
     std::set<std::shared_ptr<ngraph::Node>> nodes_processed = {};
@@ -560,7 +594,7 @@ void validate_inputs_count(const std::shared_ptr<ngraph::Node>& op, std::vector<
 
     IE_THROW() << "Invalid inputs count (" << op->get_input_size() << ") in "
                << op->get_friendly_name() << " (" << op->get_type_name()
-               << " op::v" << op->get_type_info().version << ")";
+               << " op::v" << op->get_type_info().version_id << ")";
 }
 
 }  // namespace intel_gpu

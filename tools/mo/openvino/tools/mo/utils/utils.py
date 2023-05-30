@@ -18,11 +18,15 @@ except ImportError:
 
 
 def refer_to_faq_msg(question_num: int):
-    t = tm.Telemetry()
-    t.send_event('mo', 'error_info', "faq:" + str(question_num))
+    try:
+        t = tm.Telemetry()
+        t.send_event('mo', 'error_info', "faq:" + str(question_num))
+    except Exception:
+        # Telemetry can be not initialized if it is used in MO IR Reader
+        pass
 
     return '\n For more information please refer to Model Optimizer FAQ, question #{0}. ' \
-           '(https://docs.openvino.ai/latest/openvino_docs_MO_DG_prepare_model_Model_Optimizer_FAQ.html' \
+           '(https://docs.openvino.ai/2023.0/openvino_docs_MO_DG_prepare_model_Model_Optimizer_FAQ.html' \
            '?question={0}#question-{0})'.format(question_num)
 
 

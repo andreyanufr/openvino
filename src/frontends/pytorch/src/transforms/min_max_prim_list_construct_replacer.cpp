@@ -40,7 +40,7 @@ MinMaxPrimListConstructReplacer::MinMaxPrimListConstructReplacer() {
         } else {
             op = max_op;
         }
-        auto input_node = op->input_value(0).get_node_shared_ptr();
+        auto input_node = op->input_value(0);
         auto num_inputs = op->inputs().size();
         auto input = concat_list_construct(input_node);
         std::shared_ptr<Node> reduce_op;
@@ -49,7 +49,8 @@ MinMaxPrimListConstructReplacer::MinMaxPrimListConstructReplacer() {
             auto step = std::make_shared<ov::op::v0::Constant>(element::i32, Shape{}, 1);
             auto shape = std::make_shared<ov::op::v3::ShapeOf>(input, element::i32);
             auto rank = std::make_shared<ov::op::v3::ShapeOf>(shape, element::i32);
-            auto reduced_rank = std::make_shared<ov::op::v0::Squeeze>(rank);
+            auto axis_0 = ov::op::v0::Constant::create(element::i32, Shape{}, {0});
+            auto reduced_rank = std::make_shared<ov::op::v0::Squeeze>(rank, axis_0);
             auto axes = std::make_shared<ov::op::v4::Range>(start, reduced_rank, step, element::i32);
             std::shared_ptr<Node> reduce_op;
             if (!is_min) {
@@ -57,11 +58,11 @@ MinMaxPrimListConstructReplacer::MinMaxPrimListConstructReplacer() {
             } else {
                 reduce_op = std::make_shared<ov::op::v1::ReduceMin>(input, axes);
             }
-            copy_runtime_info({op, input_node}, reduce_op);
+            copy_runtime_info({op, input_node.get_node_shared_ptr()}, reduce_op);
             replace_node(op, reduce_op);
             return true;
         }
-        auto second_input_node = op->input_value(1).get_node_shared_ptr();
+        auto second_input_node = op->input_value(1);
         auto second_input = concat_list_construct(second_input_node);
         std::shared_ptr<Node> min_or_max_op;
         if (!is_min) {
@@ -69,7 +70,7 @@ MinMaxPrimListConstructReplacer::MinMaxPrimListConstructReplacer() {
         } else {
             min_or_max_op = std::make_shared<ov::op::v1::Minimum>(input, second_input);
         }
-        copy_runtime_info({op, input_node, second_input_node}, min_or_max_op);
+        copy_runtime_info({op, input_node.get_node_shared_ptr()}, min_or_max_op);
         replace_node(op, min_or_max_op);
         return true;
     };

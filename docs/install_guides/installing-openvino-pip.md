@@ -2,11 +2,12 @@
 
 @sphinxdirective
 
-You can install both OpenVINO™ Runtime and OpenVINO Development Tools through the PyPI repository. This page provides the main steps for installing OpenVINO Runtime.
+Using the PyPI repository, you can install either OpenVINO™ Runtime or OpenVINO Development Tools on Windows, Linux, and macOS systems.
+This article focuses on OpenVINO™ Runtime.
 
-.. note:
+.. note
 
-   From the 2022.1 release, the OpenVINO™ Development Tools can only be installed via PyPI. See :doc:`Install OpenVINO Development Tools <openvino_docs_install_guides_install_dev_tools>` for detailed steps.
+   If you install OpenVINO Development Tools, OpenVINO Runtime will also be installed as a dependency, so you don't need to install it separately.
 
 
 Installing OpenVINO Runtime
@@ -95,18 +96,8 @@ Run the command below:
    python -c "from openvino.runtime import Core"
 
 
-If installation was successful, you will not see any error messages (no console output).
+If installation was successful, you will not see any error messages (no console output). Congratulations! You have finished installing OpenVINO Runtime.
 
-Congratulations! You finished installing OpenVINO Runtime. Now you can start exploring OpenVINO's functionality through Jupyter Notebooks and sample applications. See the :ref:`What's Next <whats-next>` section to learn more!
-
-Installing OpenVINO Development Tools
-#####################################
-
-OpenVINO Development Tools adds even more functionality to OpenVINO. It provides tools like Model Optimizer, Benchmark Tool, Post-Training Optimization Tool, and Open Model Zoo Downloader. If you install OpenVINO Development Tools, OpenVINO Runtime will also be installed as a dependency, so you don't need to install OpenVINO Runtime separately.
-
-See the :doc:`Install OpenVINO Development Tools <openvino_docs_install_guides_install_dev_tools>` page for step-by-step installation instructions.
-
-.. _whats-next:
 
 What's Next?
 ####################
@@ -116,16 +107,16 @@ Now that you've installed OpenVINO Runtime, you're ready to run your own machine
 .. image:: https://user-images.githubusercontent.com/15709723/127752390-f6aa371f-31b5-4846-84b9-18dd4f662406.gif
    :width: 400
 
-Try the `Python Quick Start Example <https://docs.openvino.ai/nightly/notebooks/201-vision-monodepth-with-output.html>`__ to estimate depth in a scene using an OpenVINO monodepth model in a Jupyter Notebook inside your web browser.
+Try the `Python Quick Start Example <notebooks/201-vision-monodepth-with-output.html>`__ to estimate depth in a scene using an OpenVINO monodepth model in a Jupyter Notebook inside your web browser.
 
 Get started with Python
 +++++++++++++++++++++++
 
 Visit the :doc:`Tutorials <tutorials>` page for more Jupyter Notebooks to get you started with OpenVINO, such as:
 
-* `OpenVINO Python API Tutorial <https://docs.openvino.ai/nightly/notebooks/002-openvino-api-with-output.html>`__
-* `Basic image classification program with Hello Image Classification <https://docs.openvino.ai/nightly/notebooks/001-hello-world-with-output.html>`__
-* `Convert a PyTorch model and use it for image background removal <https://docs.openvino.ai/nightly/notebooks/205-vision-background-removal-with-output.html>`__
+* `OpenVINO Python API Tutorial <notebooks/002-openvino-api-with-output.html>`___
+* `Basic image classification program with Hello Image Classification <notebooks/001-hello-world-with-output.html>`___
+* `Convert a PyTorch model and use it for image background removal <notebooks/205-vision-background-removal-with-output.html>`___
 
 Run OpenVINO on accelerated devices
 +++++++++++++++++++++++++++++++++++
